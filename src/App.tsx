@@ -7,6 +7,7 @@ import { Games } from './screens/Games'
 import { Home } from './screens/Home'
 import { SnakeScreen } from './screens/SnakeScreen'
 import { BubblesScreen } from './screens/BubblesScreen'
+import { BlocksScreen } from './screens/BlocksScreen'
 import { Settings } from './screens/Settings'
 import { Onboarding } from './screens/Onboarding'
 import { ProgressScreen } from './screens/ProgressScreen'
@@ -181,6 +182,8 @@ export default function App() {
         <main>
           {playing === 'bubbles' ? (
             <BubblesScreen engine={engine} act={act} onExit={() => setPlaying(null)} />
+          ) : playing === 'blocks' ? (
+            <BlocksScreen engine={engine} act={act} onExit={() => setPlaying(null)} />
           ) : (
             <SnakeScreen engine={engine} act={act} onExit={() => setPlaying(null)} />
           )}

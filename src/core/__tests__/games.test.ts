@@ -37,6 +37,7 @@ describe('игры', () => {
     expect(e.finishGame('bubbles', 120, at(16))).toEqual({ newRecord: true, record: 120, newBadges: [] })
     expect(e.finishGame('bubbles', 520, at(16)).newBadges).toContain('bubbles500')
     expect(e.state.games.records).toEqual({ snack: 300, bubbles: 520 })
+    expect(e.finishGame('blocks', 1000, at(16)).newBadges).toEqual(['blocks1000'])
   })
 
   it('loadState чистит игры', () => {

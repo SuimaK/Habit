@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { LIFE_PACKS, dayOf, nextBoundary, type GameEngine, type GameId, type LifePack } from '../core'
+import { BLOCKS_LEVEL, LIFE_PACKS, dayOf, nextBoundary, type GameEngine, type GameId, type LifePack } from '../core'
 import { plural } from '../labels'
 
 interface Props {
@@ -27,6 +27,7 @@ export function Games({ engine, now, act, onPlay }: Props) {
   const lastBuy = useRef(0)
   const refresh = nextBoundary(now).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })
   const level = engine.level.level
+  const blocksOpen = level >= BLOCKS_LEVEL
 
   useEffect(() => {
     if (!notice) return
@@ -91,14 +92,19 @@ export function Games({ engine, now, act, onPlay }: Props) {
               Играть ♥1
             </button>
           </li>
-          <li className="game-row soon-row">
+          <li className={`game-row ${blocksOpen ? '' : 'soon-row'}`}>
             <span className="game-icon" aria-hidden>
               🧱
             </span>
             <span className="row-text">
               «Блоки»
-              <small>{level >= 10 ? 'Появится в следующей версии' : 'Откроется на 10-м уровне'}</small>
+              <small>{blocksOpen ? `Падающие ящики · рекорд ${g.records.blocks ?? 0}` : `Откроется на ${BLOCKS_LEVEL}-м уровне (сейчас ${level}-й)`}</small>
             </span>
+            {blocksOpen && (
+              <button type="button" className="btn primary small" disabled={!!block} onClick={() => onPlay('blocks')} aria-label="Играть в «Блоки», стоит 1 жизнь" aria-describedby={block ? 'game-block' : undefined}>
+                Играть ♥1
+              </button>
+            )}
           </li>
         </ul>
         {block && <p className="muted game-block" id="game-block">{BLOCK_TEXT[block]}</p>}

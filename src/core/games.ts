@@ -25,3 +25,6 @@ export function playLeftSec(g: GamesState, day: Day): number {
   if (!g.limitMin) return Infinity
   return Math.max(0, g.limitMin * 60 - (g.playedByDay[day] ?? 0))
 }
+
+/** «Блоки» открываются на этом уровне (ТЗ 3.6). */
+export const BLOCKS_LEVEL = 10
