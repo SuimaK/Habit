@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { BADGES, dailyProgress, generateDaily, generateWeekly, rollChest, seededRandom, weeklyProgress, type Habit } from '..'
+import { BADGES, dailyProgress, generateDaily, generateWeekly, loadState, rollChest, seededRandom, weeklyProgress, type Habit } from '..'
 import { at, d, engine, err, habit, must } from './helpers'
 
 const withCat = (h: Habit, category: Habit['category']): Habit => ({ ...h, category })
@@ -256,6 +256,10 @@ describe('сессии таймера', () => {
     expect(e.state.sessions[0]).toMatchObject({ minutes: 10, moodBefore: 3, moodAfter: undefined })
     e.setMoodAfter(id, d(16), 4)
     expect(e.state.sessions[0].moodAfter).toBe(4)
+    e.logSession({ habitId: id, day: d(16), minutes: NaN })
+    expect(e.state.sessions[1].minutes).toBe(0)
+    const loaded = loadState({ habits: [], sessions: [{ habitId: 'y', day: 5 }, { habitId: 'y', day: d(1), minutes: 'zz', moodBefore: 'q', moodAfter: 2 }, null] })
+    expect(loaded.sessions).toEqual([{ habitId: 'y', day: d(1), minutes: 0, moodBefore: undefined, moodAfter: 2 }])
     e.setMoodAfter(id, d(16), 0)
     expect(e.state.sessions[0].moodAfter).toBe(4)
   })

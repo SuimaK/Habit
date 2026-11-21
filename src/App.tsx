@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { dayOf, needs, type GameEngine, type Habit } from './core'
 import { TabBar, type Tab } from './components/TabBar'
 import { LIBRARY } from './library'
@@ -45,20 +45,27 @@ export default function App() {
   const s = engine.state
   const timerHabit = timer && s.habits.find((h) => h.id === timer.habitId && !h.archived)
 
-  function finishSession(h: Habit, minutes: number, moodBefore?: number) {
+  function finishSession(h: Habit, minutes: number, moodBefore: number | undefined, endedAt: number) {
     const result = act((e, at) => {
-      const day = dayOf(at)
-      const value = () => needs(e.state.habits, e.state.completions, day).find((n) => n.category === h.category)!
+      const today = dayOf(at)
+      // Сессия засчитывается в день, когда она фактически закончилась.
+      // Если это было в прошлый день (приложение было закрыто), прошлый день уже подведён — без отметки.
+      const day = dayOf(new Date(endedAt)) < today ? dayOf(new Date(endedAt)) : today
+      const value = () => needs(e.state.habits, e.state.completions, today).find((n) => n.category === h.category)!
       const before = value()
-      const r = e.complete(h.id, at)
+      const r = day === today ? e.complete(h.id, at) : null
       e.logSession({ habitId: h.id, day, minutes, moodBefore })
       const after = value()
       return {
         habit: h,
         day,
         minutes,
-        event: r.ok ? r.value : undefined,
-        note: r.ok ? undefined : (COMPLETE_NOTE[r.error] ?? 'Отметить не получилось — сессия записана.'),
+        event: r?.ok ? r.value : undefined,
+        note: !r
+          ? 'Таймер закончился в прошлый день — сессия записана в историю без отметки сегодня.'
+          : r.ok
+            ? undefined
+            : (COMPLETE_NOTE[r.error] ?? 'Отметить не получилось — сессия записана.'),
         need: { label: before.label, before: before.value, after: after.value, max: before.max },
       }
     })
@@ -66,6 +73,17 @@ export default function App() {
     setTimer(null)
     setReward(result)
   }
+
+  /** После таймера или награды — фокус обратно на список «Сегодня» (для VoiceOver). */
+  const refocus = useRef(false)
+  function focusToday() {
+    refocus.current = true
+  }
+  useEffect(() => {
+    if (!refocus.current || timer || reward) return
+    refocus.current = false
+    document.querySelector<HTMLElement>('.habits h2')?.focus()
+  })
 
   if (s.profile && timer && timerHabit) {
     return (
@@ -79,10 +97,11 @@ export default function App() {
               writeTimer(data)
               setTimer({ habitId: timer.habitId, data })
             }}
-            onFinish={(minutes, moodBefore) => finishSession(timerHabit, minutes, moodBefore)}
+            onFinish={(minutes, moodBefore, endedAt) => finishSession(timerHabit, minutes, moodBefore, endedAt)}
             onExit={() => {
               writeTimer(null)
               setTimer(null)
+              focusToday()
             }}
           />
         </main>
@@ -170,6 +189,7 @@ export default function App() {
           onClose={(mood) => {
             if (mood) act((e) => e.setMoodAfter(reward.habit.id, reward.day, mood))
             setReward(null)
+            focusToday()
           }}
         />
       )}

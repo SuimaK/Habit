@@ -11,7 +11,8 @@ interface Props {
   data: TimerData | null
   onChange: (t: TimerData | null) => void
   /** Сессия закончилась (по времени или кнопкой «Завершить»). */
-  onFinish: (minutes: number, moodBefore?: number) => void
+  /** endedAt — когда сессия фактически кончилась (мс); может быть в прошлом, если приложение было закрыто. */
+  onFinish: (minutes: number, moodBefore: number | undefined, endedAt: number) => void
   onExit: () => void
 }
 
@@ -45,6 +46,9 @@ export function Timer({ habit, data, onChange, onFinish, onExit }: Props) {
   const [nowMs, setNowMs] = useState(() => Date.now())
   const [confirmExit, setConfirmExit] = useState(false)
   const finished = useRef(false)
+  /** Шёл ли таймер, когда открыли подтверждение выхода. */
+  const wasRunning = useRef(false)
+  const head = useRef<HTMLHeadingElement>(null)
   const meditation = habit.category === 'meditation'
 
   const running = data !== null && data.endAt !== null
@@ -64,20 +68,39 @@ export function Timer({ habit, data, onChange, onFinish, onExit }: Props) {
     }
   }, [running])
 
-  function finish() {
+  useEffect(() => head.current?.focus(), [])
+
+  function finish(auto = false) {
     if (finished.current || !data) return
     finished.current = true
-    const spent = data.durationSec - remaining(data, Date.now())
-    onFinish(spent / 60, data.moodBefore)
+    const at = Date.now()
+    const endedAt = data.endAt !== null ? Math.min(at, data.endAt) : at
+    const spent = data.durationSec - remaining(data, at)
+    if (auto) chime()
+    onFinish(spent / 60, data.moodBefore, endedAt)
   }
 
   // Время вышло — звон и экран награды.
   useEffect(() => {
-    if (running && left <= 0) {
-      chime()
-      finish()
-    }
+    if (running && left <= 0) finish(true)
   })
+
+  /** Подтверждение выхода ставит таймер на паузу, чтобы он не закончился, пока решаешь. */
+  function askExit() {
+    if (!data) return
+    wasRunning.current = running
+    if (running) onChange(pause(data, Date.now()))
+    setConfirmExit(true)
+  }
+
+  function stay() {
+    setConfirmExit(false)
+    if (data && wasRunning.current) {
+      const at = Date.now()
+      setNowMs(at)
+      onChange(resume(data, at))
+    }
+  }
 
   function start() {
     unlockAudio()
@@ -103,12 +126,14 @@ export function Timer({ habit, data, onChange, onFinish, onExit }: Props) {
   const breathIn = Math.floor(elapsed / 4) % 2 === 0
 
   return (
-    <div className="screen timer" aria-label="Таймер">
+    <section className="screen timer" aria-label="Таймер">
       <header className="sheet-head">
-        <button type="button" className="btn ghost small" onClick={data ? () => setConfirmExit(true) : onExit}>
+        <button type="button" className="btn ghost small" onClick={data ? (confirmExit ? undefined : askExit) : onExit}>
           {data ? 'Выйти' : 'Назад'}
         </button>
-        <h2>{CATEGORY_LABEL[habit.category]}</h2>
+        <h2 ref={head} tabIndex={-1}>
+          {CATEGORY_LABEL[habit.category]}
+        </h2>
         <span />
       </header>
       <p className="timer-habit">{habit.name}</p>
@@ -118,11 +143,11 @@ export function Timer({ habit, data, onChange, onFinish, onExit }: Props) {
           <div className="timer-len">
             <span id="timer-len">Длительность</span>
             <div className="stepper" role="group" aria-labelledby="timer-len">
-              <button type="button" aria-label="Меньше" disabled={minutes <= MIN_MINUTES} onClick={() => setMinutes((m) => Math.max(MIN_MINUTES, m - (m > 10 ? 5 : 1)))}>
+              <button type="button" aria-label="Меньше" disabled={minutes <= MIN_MINUTES} onClick={() => setMinutes((m) => Math.max(MIN_MINUTES, m > 10 ? m - (m % 5 || 5) : m - 1))}>
                 −
               </button>
               <strong aria-live="polite">{minutes} мин</strong>
-              <button type="button" aria-label="Больше" disabled={minutes >= MAX_MINUTES} onClick={() => setMinutes((m) => Math.min(MAX_MINUTES, m + (m >= 10 ? 5 : 1)))}>
+              <button type="button" aria-label="Больше" disabled={minutes >= MAX_MINUTES} onClick={() => setMinutes((m) => Math.min(MAX_MINUTES, m >= 10 ? m + 5 - (m % 5) : m + 1))}>
                 +
               </button>
             </div>
@@ -152,7 +177,7 @@ export function Timer({ habit, data, onChange, onFinish, onExit }: Props) {
                 {fmtClock(left)}
               </span>
               {meditation && running && <small aria-hidden>{breathIn ? 'вдох…' : 'выдох…'}</small>}
-              {!running && <small>пауза</small>}
+              {!running && <small role="status">пауза</small>}
             </div>
           </div>
 
@@ -160,7 +185,7 @@ export function Timer({ habit, data, onChange, onFinish, onExit }: Props) {
             <div className="card timer-confirm" role="group" aria-label="Выйти из таймера">
               <p>Выйти без отметки? Сессия не сохранится.</p>
               <div className="row-btns">
-                <button type="button" className="btn ghost" onClick={() => setConfirmExit(false)}>
+                <button type="button" className="btn ghost" onClick={stay} autoFocus>
                   Остаться
                 </button>
                 <button
@@ -180,7 +205,7 @@ export function Timer({ habit, data, onChange, onFinish, onExit }: Props) {
               <button type="button" className="btn ghost" onClick={togglePause}>
                 {running ? 'Пауза' : 'Продолжить'}
               </button>
-              <button type="button" className="btn primary" onClick={finish}>
+              <button type="button" className="btn primary" onClick={() => finish()}>
                 Завершить
               </button>
             </div>
@@ -188,6 +213,6 @@ export function Timer({ habit, data, onChange, onFinish, onExit }: Props) {
           <p className="muted timer-hint">«Завершить» раньше времени тоже засчитывает привычку.</p>
         </>
       )}
-    </div>
+    </section>
   )
 }

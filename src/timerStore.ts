@@ -67,7 +67,7 @@ export const MAX_MINUTES = 120
 
 /** Длительность по умолчанию: цель привычки в минутах, иначе 10. */
 export function defaultMinutes(h: Habit): number {
-  const m = h.target?.unit === 'minutes' ? h.target.amount : 10
+  const m = h.target?.unit === 'minutes' && Number.isFinite(h.target.amount) ? Math.round(h.target.amount) : 10
   return Math.max(MIN_MINUTES, Math.min(MAX_MINUTES, m))
 }
 

@@ -128,7 +128,12 @@ export function loadState(raw: unknown): GameState {
       }
     })(),
     badges: obj(r.badges, {}),
-    sessions: arr<Session>(r.sessions, []).filter((x) => x && typeof x === 'object' && typeof x.habitId === 'string'),
+    sessions: arr<Session>(r.sessions, [])
+      .filter((x) => x && typeof x === 'object' && typeof x.habitId === 'string' && typeof x.day === 'string')
+      .map((x) => {
+        const mood = (m: unknown) => (typeof m === 'number' && Number.isInteger(m) && m >= 1 && m <= 5 ? m : undefined)
+        return { habitId: x.habitId, day: x.day, minutes: Math.max(0, num(x.minutes, 0)), moodBefore: mood(x.moodBefore), moodAfter: mood(x.moodAfter) }
+      }),
     profile:
       r.profile && typeof r.profile === 'object' && typeof (r.profile as Profile).name === 'string'
         ? (r.profile as Profile)
@@ -314,7 +319,7 @@ export class GameEngine {
     const mood = (m?: number) => (m !== undefined && Number.isInteger(m) && m >= 1 && m <= 5 ? m : undefined)
     this.state.sessions.push({
       ...session,
-      minutes: Math.max(0, Math.round(session.minutes * 10) / 10),
+      minutes: Number.isFinite(session.minutes) ? Math.max(0, Math.round(session.minutes * 10) / 10) : 0,
       moodBefore: mood(session.moodBefore),
       moodAfter: mood(session.moodAfter),
     })

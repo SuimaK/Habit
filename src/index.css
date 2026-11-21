@@ -21,6 +21,9 @@
   --warn-bg: #fde8d8;
   --warn-ink: #7a3410;
   --bar-bg: #efe4d6;
+  /* кольцо таймера: контраст ≥ 3:1 к фону */
+  --ring-workout: #c4503b;
+  --ring-meditation: #5466c4;
 
   /* комната */
   --wall-left: #f3dcc4;
@@ -63,6 +66,8 @@
     --muted: #a99c93;
     --line: #3a3443;
     --bar-bg: #3a3443;
+    --ring-workout: var(--need-workout);
+    --ring-meditation: var(--need-meditation);
     --wall-left: #4a3f55;
     --wall-right: #3f3549;
     --trim: #2e2836;
@@ -367,12 +372,12 @@ main {
   font-size: 18px; font-weight: 700; color: var(--ink); cursor: pointer;
 }
 .mood-row .on { border-color: var(--accent-text); background: color-mix(in srgb, var(--accent) 18%, var(--card)); color: var(--accent-text); }
-.timer-face { position: relative; width: min(72vw, 280px); aspect-ratio: 1; margin: 8px auto; display: grid; place-items: center; }
+.timer-face { position: relative; width: min(72vw, 280px, 40dvh); aspect-ratio: 1; margin: 8px auto; display: grid; place-items: center; }
 .timer-face svg { position: absolute; inset: 0; width: 100%; height: 100%; transform: rotate(-90deg); }
 .ring-bg { fill: none; stroke: var(--bar-bg); stroke-width: 10; }
 .ring { fill: none; stroke-width: 10; stroke-linecap: round; transition: stroke-dasharray 0.3s linear; }
-.ring.cat-workout { stroke: var(--need-workout); }
-.ring.cat-meditation { stroke: var(--need-meditation); }
+.ring.cat-workout { stroke: var(--ring-workout); }
+.ring.cat-meditation { stroke: var(--ring-meditation); }
 .breath-ball {
   position: absolute; width: 62%; height: 62%; border-radius: 50%;
   background: radial-gradient(circle, color-mix(in srgb, var(--need-meditation) 45%, transparent), color-mix(in srgb, var(--need-meditation) 12%, transparent));
@@ -380,14 +385,14 @@ main {
 }
 .breath.running.in .breath-ball { transform: scale(1); }
 .breath.running.out .breath-ball { transform: scale(0.7); }
-@media (prefers-reduced-motion: reduce) { .breath-ball { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .breath .breath-ball, .breath.running.in .breath-ball, .breath.running.out .breath-ball { transition: none; transform: scale(0.85); } }
 .timer-clock { position: relative; display: flex; flex-direction: column; align-items: center; gap: 4px; }
-.timer-clock span { font-size: 52px; font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: 0.02em; }
+.timer-clock span { font-size: clamp(40px, 13vw, 52px); font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: 0.02em; }
 .timer-clock small { color: var(--muted); font-size: 16px; }
 .row-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .row-btns .btn { min-height: 52px; }
 .btn.ghost.wide, .row-btns .btn.ghost { border: 1.5px solid var(--line); }
-.btn.danger { background: var(--warn-ink); color: #fff; }
+.btn.danger { background: #a3361f; color: #fff; }
 .timer-confirm { padding: 14px 16px; display: flex; flex-direction: column; gap: 12px; }
 .timer-confirm p { margin: 0; }
 .timer-hint { text-align: center; font-size: 13px; margin: 0; }
@@ -409,3 +414,4 @@ main {
 .reward .mood { text-align: left; }
 @keyframes pop { from { transform: scale(0.9); opacity: 0; } to { transform: none; opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .reward { animation: none; } }
+[tabindex="-1"]:focus { outline: none; }

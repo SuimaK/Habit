@@ -54,7 +54,10 @@ export function RewardScreen({ result, onClose }: { result: SessionResult; onClo
         <ul className="reward-news">
           {ev && (ev.bonusXp > 0 || ev.bonusCoins > 0) && (
             <li>
-              Все привычки дня выполнены! Бонус +{ev.bonusXp} XP и +{ev.bonusCoins} монет
+              Все привычки дня выполнены! Бонус{' '}
+              {[ev.bonusXp > 0 && `+${ev.bonusXp} XP`, ev.bonusCoins > 0 && `+${ev.bonusCoins} ${plural(ev.bonusCoins, 'монета', 'монеты', 'монет')}`]
+                .filter(Boolean)
+                .join(' и ')}
             </li>
           )}
           {ev && ev.levelAfter > ev.levelBefore && (

@@ -20,6 +20,8 @@ export function chime() {
   }
   if (!ctx) return
   try {
+    // На iOS после фона контекст бывает «interrupted» — пробуем вернуть.
+    if (ctx.state !== 'running') void ctx.resume()
     const t0 = ctx.currentTime
     for (const [i, freq] of [660, 880, 990].entries()) {
       const osc = ctx.createOscillator()

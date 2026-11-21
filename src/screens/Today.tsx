@@ -194,7 +194,7 @@ export function Today({ engine, now, act, storageOk, onManage, onQuests, onTimer
 
       <section className="card habits">
         <header className="habits-head">
-          <h2>Сегодня</h2>
+          <h2 tabIndex={-1}>Сегодня</h2>
           <span>
             {doneCount} из {list.length} готово
           </span>
