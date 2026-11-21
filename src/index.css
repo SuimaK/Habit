@@ -492,3 +492,4 @@ main {
 .snake-pad button { border-radius: 16px; border: 1.5px solid var(--line); background: var(--card); color: var(--accent-text); font-size: 20px; cursor: pointer; touch-action: manipulation; }
 .snake-pad .up { grid-area: up; } .snake-pad .left { grid-area: left; } .snake-pad .right { grid-area: right; } .snake-pad .down { grid-area: down; }
 .settings-note { margin: -4px 0 0; font-size: 13px; }
+.settings-h { margin: 0; font-size: 17px; }

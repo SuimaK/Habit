@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { GameEngine } from './core'
-import { readState, writeState } from './storage'
+import { GameEngine, type GameState } from './core'
+import { keepCopy, readState, writeState } from './storage'
 
 function boot(now: Date): { engine: GameEngine; saved: boolean } {
   const stored = readState()
@@ -57,5 +57,17 @@ export function useGame() {
     }
   }, [commit])
 
-  return { engine, now, act, storageOk }
+  /** Заменить всё состояние (восстановление из копии). Текущее откладывается в отдельный ключ на всякий случай. */
+  const replace = useCallback(
+    (state: GameState) => {
+      keepCopy(engineRef.current.state)
+      const at = new Date()
+      const next = new GameEngine(state)
+      next.startOfDay(at)
+      commit(next, at)
+    },
+    [commit],
+  )
+
+  return { engine, now, act, storageOk, replace }
 }

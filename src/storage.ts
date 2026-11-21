@@ -30,6 +30,15 @@ export function readState(): GameState | null {
   }
 }
 
+/** Отложить копию текущего прогресса перед восстановлением из файла. */
+export function keepCopy(state: GameState) {
+  try {
+    localStorage.setItem(`${KEY}/before-restore-${Date.now()}`, JSON.stringify(state))
+  } catch {
+    /* места нет — восстановление всё равно выполняется */
+  }
+}
+
 /** Возвращает false, если сохранить не удалось (приватный режим, нет места). */
 export function writeState(state: GameState): boolean {
   try {

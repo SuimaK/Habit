@@ -37,7 +37,7 @@ const COMPLETE_NOTE: Record<string, string> = {
 }
 
 export default function App() {
-  const { engine, now, act, storageOk } = useGame()
+  const { engine, now, act, storageOk, replace } = useGame()
   const [tab, setTab] = useState<Tab>('today')
   const [managing, setManaging] = useState(false)
   const [settings, setSettings] = useState(false)
@@ -189,6 +189,14 @@ export default function App() {
               })
             }
             onHabits={() => setManaging(true)}
+            state={s}
+            onRestore={(st) => {
+              replace(st)
+              // Форма настроек держит старое имя — закрываем её и показываем восстановленный день.
+              setSettingsDraft(null)
+              setSettings(false)
+              setTab('today')
+            }}
             gameLimit={s.games.limitMin}
             onGameLimit={(m) => act((e) => e.setGameLimit(m))}
             draft={settingsDraft}

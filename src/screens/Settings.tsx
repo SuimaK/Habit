@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import { GAME_LIMIT_OPTIONS, type Profile } from '../core'
+import { makeBackup, makeCsv, parseBackup, saveFile, type BackupSummary } from '../backup'
+import { GAME_LIMIT_OPTIONS, type GameState, type Profile } from '../core'
 import { Room } from '../components/Room'
 import { HAIRS, SHIRTS, SKINS } from '../labels'
 import { Swatches } from './Onboarding'
@@ -14,10 +15,13 @@ interface Props {
   onDraft: (p: Profile) => void
   gameLimit: number
   onGameLimit: (minutes: number) => void
+  /** Текущее состояние — для копии и CSV. */
+  state: GameState
+  onRestore: (s: GameState) => void
 }
 
 /** Настройки: имя и внешний вид персонажа, переход к привычкам. */
-export function Settings({ profile, onSave, onHabits, onClose, draft, onDraft, gameLimit, onGameLimit }: Props) {
+export function Settings({ profile, onSave, onHabits, onClose, draft, onDraft, gameLimit, onGameLimit, state, onRestore }: Props) {
   const start = draft ?? profile
   const [name, setNameState] = useState(start.name)
   const [look, setLookState] = useState({ skin: start.skin, hair: start.hair, shirt: start.shirt })
@@ -118,7 +122,91 @@ export function Settings({ profile, onSave, onHabits, onClose, draft, onDraft, g
         </fieldset>
         <p className="muted settings-note">Меняется сразу, без кнопки «Сохранить».</p>
       </section>
-      <p className="muted settings-later">Резервная копия появится в следующем блоке.</p>
+      <DataSection state={state} onRestore={onRestore} />
     </div>
+  )
+}
+
+const BACKUP_ERRORS = {
+  notJson: 'Это не файл копии — не получилось его прочитать.',
+  notBackup: 'В этом файле нет данных приложения.',
+}
+
+/** Резервная копия, восстановление и выгрузка истории. */
+function DataSection({ state, onRestore }: { state: GameState; onRestore: (s: GameState) => void }) {
+  const [status, setStatus] = useState('')
+  const [pending, setPending] = useState<{ state: GameState; summary: BackupSummary } | null>(null)
+  const fileRef = useRef<HTMLInputElement>(null)
+  const confirmRef = useRef<HTMLButtonElement>(null)
+  useEffect(() => {
+    if (pending) confirmRef.current?.focus()
+  }, [pending])
+
+  async function exportBackup() {
+    const { name, text } = makeBackup(state, new Date())
+    const r = await saveFile(name, text, 'application/json')
+    setStatus(r === 'cancelled' ? '' : `Копия готова: ${name}. Сохрани её в «Файлы» или отправь себе.`)
+  }
+
+  async function exportCsv() {
+    const { name, text } = makeCsv(state, new Date())
+    const r = await saveFile(name, text, 'text/csv')
+    setStatus(r === 'cancelled' ? '' : `История выгружена: ${name}.`)
+  }
+
+  async function pick(file: File | undefined) {
+    if (fileRef.current) fileRef.current.value = ''
+    if (!file) return
+    if (file.size > 20 * 1024 * 1024) return setStatus(BACKUP_ERRORS.notBackup)
+    const r = parseBackup(await file.text())
+    if (!r.ok) return setStatus(BACKUP_ERRORS[r.error])
+    setStatus('')
+    setPending(r)
+  }
+
+  const s = pending?.summary
+  return (
+    <section className="card settings-card" aria-labelledby="data-h">
+      <h3 id="data-h" className="settings-h">Данные</h3>
+      <p className="muted settings-note">Прогресс хранится только на этом телефоне. Время от времени сохраняй копию в файл.</p>
+      <button type="button" className="btn primary wide" onClick={exportBackup}>
+        Сохранить копию
+      </button>
+      <button type="button" className="btn ghost wide" onClick={() => fileRef.current?.click()}>
+        Восстановить из копии
+      </button>
+      <input ref={fileRef} type="file" accept="application/json,.json" hidden onChange={(e) => pick(e.target.files?.[0])} />
+      <button type="button" className="btn ghost wide" onClick={exportCsv}>
+        Выгрузить историю (CSV)
+      </button>
+      {pending && s && (
+        <div className="timer-confirm card" role="group" aria-label="Восстановить из копии">
+          <p>
+            В копии{s.exportedAt ? ` от ${new Date(s.exportedAt).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' })}` : ''}:{' '}
+            {s.name ?? 'без имени'}, ур. {s.level}, привычек: {s.habits}, отметок: {s.completions}, монет: {s.coins}.
+          </p>
+          <p className="muted">Текущий прогресс на телефоне заменится данными из копии.</p>
+          <div className="row-btns">
+            <button type="button" className="btn ghost" ref={confirmRef} onClick={() => setPending(null)}>
+              Отмена
+            </button>
+            <button
+              type="button"
+              className="btn danger"
+              onClick={() => {
+                onRestore(pending.state)
+                setPending(null)
+                setStatus('Готово: прогресс восстановлен из копии.')
+              }}
+            >
+              Заменить
+            </button>
+          </div>
+        </div>
+      )}
+      <p className="muted settings-note" role="status">
+        {status}
+      </p>
+    </section>
   )
 }

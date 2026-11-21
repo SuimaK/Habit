@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" fill="#f6efe6"/>
+  <circle cx="256" cy="270" r="190" fill="#f3dcc4"/>
+  <!-- домик -->
+  <path d="M136 268 L256 168 L376 268 Z" fill="#e9875f"/>
+  <rect x="160" y="262" width="192" height="138" rx="10" fill="#fffaf3"/>
+  <rect x="226" y="312" width="60" height="88" rx="10" fill="#b04d27"/>
+  <rect x="180" y="288" width="34" height="34" rx="6" fill="#bfe3f5"/>
+  <rect x="298" y="288" width="34" height="34" rx="6" fill="#bfe3f5"/>
+  <!-- росток -->
+  <path d="M256 168 C256 140 256 118 256 96" stroke="#5f9f63" stroke-width="12" stroke-linecap="round" fill="none"/>
+  <path d="M256 120 C222 120 204 100 200 72 C232 72 252 90 256 120 Z" fill="#77b67a"/>
+  <path d="M256 104 C286 104 306 86 312 58 C280 58 260 76 256 104 Z" fill="#5f9f63"/>
+  <!-- сердечко-монетка -->
+  <circle cx="372" cy="384" r="44" fill="#e9b44c"/>
+  <path d="M372 404 L350 382 a13 13 0 0 1 22 -16 a13 13 0 0 1 22 16 Z" fill="#fffaf3"/>
+</svg>
