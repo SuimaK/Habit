@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   DAILY_QUEST_REWARD,
+  DAILY_SWAPS_PER_DAY,
   WEEKLY_QUEST_REWARD,
   addDays,
   chestLabel,
@@ -48,6 +49,35 @@ export function Quests({ engine, now, act }: Props) {
     return () => clearTimeout(t)
   }, [message])
 
+  const swapsLeft = engine.dailySwapsLeft(now)
+  const lastSwap = useRef(0)
+  const [focusQuest, setFocusQuest] = useState<string | null>(null)
+  useEffect(() => {
+    if (!focusQuest) return
+    document.getElementById(`quest-${focusQuest}`)?.focus()
+    setFocusQuest(null)
+  }, [focusQuest])
+
+  function swap(id: string) {
+    const t = Date.now()
+    if (t - lastSwap.current < 800) return
+    lastSwap.current = t
+    const r = act((e, at) => e.swapDaily(id, at))
+    if (r.ok) {
+      setMessage(`Новый квест: ${questTitle(r.value, engine.state.habits)}`)
+      setFocusQuest(r.value.id)
+    } else
+      setMessage(
+        r.error === 'noAlternatives'
+          ? 'Других квестов на сегодня нет: для замены нужно больше привычек в плане дня'
+          : r.error === 'limit'
+            ? 'Замена на сегодня уже использована — завтра можно снова'
+            : r.error === 'notFound'
+              ? 'Квесты обновились — посмотри список ещё раз'
+              : 'Этот квест уже выполнен — его можно не менять',
+      )
+  }
+
   const daysLeft = q.weekly ? daysBetween(today, addDays(q.weekly.weekStart, 6)) + 1 : 0
 
   return (
@@ -85,7 +115,9 @@ export function Quests({ engine, now, act }: Props) {
                 return (
                   <li key={quest.id} className="quest">
                     <div className="quest-main">
-                      <span className="quest-title">{questTitle(quest, s.habits)}</span>
+                      <span className="quest-title" id={`quest-${quest.id}`} tabIndex={-1}>
+                        {questTitle(quest, s.habits)}
+                      </span>
                       <span className="quest-reward">
                         {DAILY_QUEST_REWARD.xp} XP · {DAILY_QUEST_REWARD.coins} 🪙
                       </span>
@@ -101,6 +133,18 @@ export function Quests({ engine, now, act }: Props) {
                       >
                         Забрать
                       </button>
+                    ) : swapsLeft > 0 ? (
+                      <div className="quest-side">
+                        <span className="quest-wait">В процессе</span>
+                        <button
+                          type="button"
+                          className="btn ghost small quest-swap"
+                          aria-label={`Заменить квест: ${questTitle(quest, s.habits)}`}
+                          onClick={() => swap(quest.id)}
+                        >
+                          Заменить
+                        </button>
+                      </div>
                     ) : (
                       <span className="quest-wait">В процессе</span>
                     )}
@@ -108,6 +152,13 @@ export function Quests({ engine, now, act }: Props) {
                 )
               })}
             </ul>
+          )}
+          {q.dailyDay === today && q.daily.length > 0 && DAILY_SWAPS_PER_DAY > 0 && (
+            <p className="muted quest-note">
+              {swapsLeft > 0
+                ? `Неудобный квест можно заменить другим — ${DAILY_SWAPS_PER_DAY === 1 ? 'один раз' : `${DAILY_SWAPS_PER_DAY} раза`} в день.`
+                : 'Замена на сегодня использована — завтра можно снова.'}
+            </p>
           )}
         </section>
       )}

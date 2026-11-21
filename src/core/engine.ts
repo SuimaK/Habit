@@ -6,8 +6,11 @@ import { Plan, type DayResult } from './plan'
 import { BADGES, type BadgeContext, type BadgesState } from './badges'
 import {
   DAILY_QUEST_REWARD,
+  DAILY_SWAPS_PER_DAY,
   WEEKLY_QUEST_REWARD,
   dailyProgress,
+  seededRandom,
+  swapCandidate,
   generateDaily,
   generateWeekly,
   habitsKey,
@@ -185,6 +188,9 @@ export function loadState(raw: unknown): GameState {
             ? { ...q.weekly, lines: q.weekly.lines.filter((l) => l && typeof l === 'object' && typeof l.target === 'number') }
             : null,
         claimedCount: num(q.claimedCount, 0),
+        swapDay: typeof q.swapDay === 'string' && isDay(q.swapDay) ? q.swapDay : undefined,
+        swaps: q.swaps === undefined ? undefined : Math.max(0, Math.floor(num(q.swaps, 0))),
+        swappedOut: q.swappedOut === undefined ? undefined : arr<string>(q.swappedOut, []).filter((x) => typeof x === 'string'),
       }
     })(),
     badges: obj(r.badges, {}),
@@ -279,6 +285,7 @@ export type CompletionError =
 
 export type PurchaseError = 'notEnoughCoins'
 export type ClaimError = 'notFound' | 'alreadyClaimed' | 'notReady'
+export type SwapError = 'notFound' | 'claimed' | 'done' | 'limit' | 'noAlternatives'
 
 export type Result<T, E> = { ok: true; value: T } | { ok: false; error: E }
 const ok = <T>(value: T): Result<T, never> => ({ ok: true, value })
@@ -463,6 +470,39 @@ export class GameEngine {
       q.weekly = generateWeekly(this.state.habits, today, q.weekly)
     }
     q.habitsKey = key
+  }
+
+  /** Сколько замен квестов дня осталось сегодня (Infinity — без ограничений). */
+  dailySwapsLeft(now: Date): number {
+    if (!DAILY_SWAPS_PER_DAY) return Infinity
+    const q = this.state.quests
+    const used = q.swapDay === dayOf(now) ? (q.swaps ?? 0) : 0
+    return Math.max(0, DAILY_SWAPS_PER_DAY - used)
+  }
+
+  /** Заменить невыполненный квест дня другим, подходящим под привычки этого дня. */
+  swapDaily(questId: string, now: Date): Result<DailyQuest, SwapError> {
+    this.startOfDay(now)
+    const today = dayOf(now)
+    const q = this.state.quests
+    const i = q.daily.findIndex((x) => x.id === questId)
+    if (i < 0 || q.dailyDay !== today) return fail('notFound')
+    const quest = q.daily[i]
+    if (quest.claimed) return fail('claimed')
+    if (dailyProgress(quest, this.state.habits, this.state.completions, today).complete) return fail('done')
+    if (this.dailySwapsLeft(now) <= 0) return fail('limit')
+    if (q.swapDay !== today) {
+      q.swapDay = today
+      q.swaps = 0
+      q.swappedOut = []
+    }
+    const out = [...(q.swappedOut ?? []), quest.id]
+    const next = swapCandidate(this.state.habits, today, q.daily, out, seededRandom(`swap:${today}:${q.swaps}:${quest.id}`))
+    if (!next) return fail('noAlternatives')
+    q.daily = q.daily.map((x, k) => (k === i ? next : x))
+    q.swaps = (q.swaps ?? 0) + 1
+    q.swappedOut = out
+    return ok(next)
   }
 
   claimDaily(questId: string, now: Date): Result<RewardEvent, ClaimError> {
