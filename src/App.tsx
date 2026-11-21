@@ -3,6 +3,8 @@ import { dayOf, needs, type GameEngine, type Habit } from './core'
 import { TabBar, type Tab } from './components/TabBar'
 import { LIBRARY } from './library'
 import { HabitsManager } from './screens/HabitsManager'
+import { Home } from './screens/Home'
+import { Settings } from './screens/Settings'
 import { Onboarding } from './screens/Onboarding'
 import { ProgressScreen } from './screens/ProgressScreen'
 import { Quests } from './screens/Quests'
@@ -12,10 +14,7 @@ import { Today } from './screens/Today'
 import { readTimer, writeTimer, type TimerData } from './timerStore'
 import { useGame } from './useGame'
 
-const SOON: Record<'games' | 'home', string> = {
-  games: 'Мини-игры появятся в блоке 7',
-  home: 'Дом и магазин появятся в блоке 6',
-}
+const SOON = 'Мини-игры появятся в блоке 7'
 
 interface TimerOpen {
   habitId: string
@@ -40,6 +39,7 @@ export default function App() {
   const { engine, now, act, storageOk } = useGame()
   const [tab, setTab] = useState<Tab>('today')
   const [managing, setManaging] = useState(false)
+  const [settings, setSettings] = useState(false)
   const [timer, setTimer] = useState<TimerOpen | null>(() => restoreTimer(engine))
   const [reward, setReward] = useState<(SessionResult & { day: string }) | null>(null)
   const s = engine.state
@@ -157,6 +157,25 @@ export default function App() {
     )
   }
 
+  if (settings && s.profile) {
+    return (
+      <div className="app">
+        <main>
+          <Settings
+            profile={s.profile}
+            onSave={(p) =>
+              act((e) => {
+                e.state.profile = p
+              })
+            }
+            onHabits={() => setManaging(true)}
+            onClose={() => setSettings(false)}
+          />
+        </main>
+      </div>
+    )
+  }
+
   return (
     <div className="app">
       <main inert={!!reward}>
@@ -174,9 +193,11 @@ export default function App() {
           <Quests engine={engine} now={now} act={act} />
         ) : tab === 'progress' ? (
           <ProgressScreen engine={engine} />
+        ) : tab === 'home' ? (
+          <Home engine={engine} now={now} act={act} onSettings={() => setSettings(true)} />
         ) : (
           <div className="screen soon">
-            <p>{SOON[tab]}</p>
+            <p>{SOON}</p>
           </div>
         )}
       </main>

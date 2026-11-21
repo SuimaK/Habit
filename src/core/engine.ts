@@ -20,6 +20,7 @@ import {
   type DailyQuest,
   type QuestState,
 } from './quests'
+import { REWARD_MAX_PRICE, REWARD_NAME_MAX, validateReward, type PersonalReward, type Redemption, type RewardError } from './rewards'
 import { initialShields, SHIELD_PRICE, consumeShield, type ShieldsState } from './shields'
 import { currentOverallStreak, habitStreak, overallStreak, streakMultiplier } from './streaks'
 
@@ -58,6 +59,9 @@ export interface GameState {
   badges: BadgesState
   /** Сессии по таймеру. */
   sessions: Session[]
+  /** Личные награды и история их получения. */
+  rewards: PersonalReward[]
+  redemptions: Redemption[]
 }
 
 export const initialState = (): GameState => ({
@@ -80,6 +84,8 @@ export const initialState = (): GameState => ({
   quests: initialQuests(),
   badges: {},
   sessions: [],
+  rewards: [],
+  redemptions: [],
 })
 
 /** Загрузить сохранённое состояние: недостающие поля (из старых версий) берутся по умолчанию. */
@@ -134,6 +140,18 @@ export function loadState(raw: unknown): GameState {
         const mood = (m: unknown) => (typeof m === 'number' && Number.isInteger(m) && m >= 1 && m <= 5 ? m : undefined)
         return { habitId: x.habitId, day: x.day, minutes: Math.max(0, num(x.minutes, 0)), moodBefore: mood(x.moodBefore), moodAfter: mood(x.moodAfter) }
       }),
+    rewards: arr<PersonalReward>(r.rewards, [])
+      .filter((x) => x && typeof x === 'object' && typeof x.id === 'string' && typeof x.name === 'string')
+      .map((x) => ({
+        id: x.id,
+        name: x.name.slice(0, REWARD_NAME_MAX),
+        price: Math.min(REWARD_MAX_PRICE, Math.max(1, Math.round(num(x.price, 1)))),
+        ...(x.archived === true ? { archived: true } : {}),
+      })),
+    redemptions: arr<Redemption>(r.redemptions, []).filter(
+      (x) => x && typeof x === 'object' && typeof x.id === 'string' && typeof x.rewardId === 'string' &&
+        typeof x.name === 'string' && typeof x.day === 'string' && typeof x.price === 'number' && Number.isFinite(x.price) && x.price >= 0,
+    ),
     profile:
       r.profile && typeof r.profile === 'object' && typeof (r.profile as Profile).name === 'string'
         ? (r.profile as Profile)
@@ -592,6 +610,56 @@ export class GameEngine {
     if (this.state.coins < SHIELD_PRICE) return fail('notEnoughCoins')
     this.state.coins -= SHIELD_PRICE
     this.state.shields = { ...this.state.shields, purchased: this.state.shields.purchased + 1 }
+    return ok(undefined)
+  }
+
+  // ---------- Личные награды ----------
+
+  addReward(reward: PersonalReward): Result<void, RewardError> {
+    const r = { ...reward, name: reward.name.trim() }
+    const bad = validateReward(r)
+    if (bad) return fail(bad)
+    this.state.rewards.push({ id: r.id, name: r.name.slice(0, REWARD_NAME_MAX), price: r.price })
+    return ok(undefined)
+  }
+
+  updateReward(reward: PersonalReward): Result<void, RewardError> {
+    const i = this.state.rewards.findIndex((x) => x.id === reward.id)
+    if (i < 0) return fail('notFound')
+    const r = { ...reward, name: reward.name.trim() }
+    const bad = validateReward(r)
+    if (bad) return fail(bad)
+    this.state.rewards[i] = { ...this.state.rewards[i], name: r.name.slice(0, REWARD_NAME_MAX), price: r.price }
+    return ok(undefined)
+  }
+
+  /** Удалить награду. Если её уже брали, она скрывается, а история остаётся. */
+  removeReward(id: string) {
+    const used = this.state.redemptions.some((x) => x.rewardId === id)
+    this.state.rewards = used
+      ? this.state.rewards.map((x) => (x.id === id ? { ...x, archived: true } : x))
+      : this.state.rewards.filter((x) => x.id !== id)
+  }
+
+  /** «Взять» награду: списать монеты и записать в историю. */
+  redeemReward(id: string, redemptionId: string, now: Date): Result<Redemption, RewardError> {
+    const r = this.state.rewards.find((x) => x.id === id && !x.archived)
+    if (!r) return fail('notFound')
+    if (this.state.coins < r.price) return fail('notEnoughCoins')
+    this.state.coins -= r.price
+    const entry: Redemption = { id: redemptionId, rewardId: r.id, name: r.name, price: r.price, day: dayOf(now) }
+    this.state.redemptions.push(entry)
+    return ok(entry)
+  }
+
+  /** Отменить получение награды (если нажала по ошибке) — только в тот же день. */
+  cancelRedemption(redemptionId: string, now: Date): Result<void, RewardError> {
+    const i = this.state.redemptions.findIndex((x) => x.id === redemptionId)
+    if (i < 0) return fail('notFound')
+    const entry = this.state.redemptions[i]
+    if (entry.day !== dayOf(now)) return fail('tooLate')
+    this.state.coins += entry.price
+    this.state.redemptions.splice(i, 1)
     return ok(undefined)
   }
 
