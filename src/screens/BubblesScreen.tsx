@@ -532,7 +532,9 @@ export function BubblesScreen({ engine, act, onExit }: Props) {
             <h3 id="bubbles-over" ref={overHead} tabIndex={-1}>
               {result.newRecord && result.score > 0 ? '★ Новый рекорд! ★' : result.won ? 'Поле чистое!' : 'Партия окончена'}
             </h3>
-            <p className="snake-final">{result.score} очков</p>
+            <p className="snake-final">
+              {result.score} {plural(result.score, 'очко', 'очка', 'очков')}
+            </p>
             {result.won && <p>Все шарики собраны — бонус +200.</p>}
             {result.newBadges.length > 0 && <p>Новый бейдж: {badgeTitles(result.newBadges)}</p>}
             {block && <p className="muted">{block === 'limitReached' ? BLOCK_TEXT.limitReached : 'Жизни закончились — новые придут в 06:00.'}</p>}

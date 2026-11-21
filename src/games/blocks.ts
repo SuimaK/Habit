@@ -15,13 +15,13 @@ export interface Cell {
 export const PIECES = [
   { id: 'dot', cells: [[0, 0]], icon: '🍒', color: '#d4605a' },
   { id: 'duo', cells: [[0, 0], [1, 0]], icon: '🍓', color: '#e0726b' },
-  { id: 'line3', cells: [[-1, 0], [0, 0], [1, 0]], icon: '🥕', color: '#e99a4f' },
+  { id: 'line3', cells: [[-1, 0], [0, 0], [1, 0]], icon: '🥕', color: '#e8893a' },
   { id: 'corner', cells: [[0, 0], [1, 0], [0, 1]], icon: '🍋', color: '#e2b84a' },
   { id: 'square', cells: [[0, 0], [1, 0], [0, 1], [1, 1]], icon: '🥦', color: '#68a56d' },
   { id: 'tee', cells: [[-1, 0], [0, 0], [1, 0], [0, 1]], icon: '🍆', color: '#9a7bd1' },
   { id: 'plus', cells: [[0, -1], [-1, 0], [0, 0], [1, 0], [0, 1]], icon: '🫐', color: '#6f86d6' },
   { id: 'step', cells: [[-1, 0], [0, 0], [0, 1], [1, 1]], icon: '🍐', color: '#9bbf5a' },
-  { id: 'hook', cells: [[-1, 0], [0, 0], [1, 0], [1, 1]], icon: '🍊', color: '#ee8a3c' },
+  { id: 'hook', cells: [[-1, 0], [0, 0], [1, 0], [1, 1]], icon: '🍑', color: '#d9779c' },
 ] as const
 export type PieceId = number // индекс в PIECES
 
@@ -43,8 +43,8 @@ export interface BlocksState {
   over: boolean
 }
 
-/** Очки за одновременно убранные линии (1, 2, 3, 4+). */
-export const LINE_POINTS = [0, 100, 250, 450, 700]
+/** Очки за одновременно убранные линии (1, 2, 3 — выше трёх клеток фигур нет). */
+export const LINE_POINTS = [0, 100, 250, 450]
 export const DROP_POINT = 1 // за каждую клетку быстрого спуска
 export const START_TICK_MS = 800
 export const MIN_TICK_MS = 150
@@ -85,7 +85,8 @@ export function move(s: BlocksState, dx: -1 | 1): BlocksState {
 export function rotate(s: BlocksState): BlocksState {
   if (s.over || PIECES[s.active.piece].id === 'square' || s.active.cells.length === 1) return s
   const cells = s.active.cells.map(([x, y]) => [-y, x] as [number, number])
-  for (const [dx, dy] of [[0, 0], [-1, 0], [1, 0], [-2, 0], [2, 0], [0, -1]]) {
+  // Сдвиг максимум на клетку вбок: фигура не «перепрыгивает» через стенку из ящиков.
+  for (const [dx, dy] of [[0, 0], [-1, 0], [1, 0]]) {
     const a = { ...s.active, cells, x: s.active.x + dx, y: s.active.y + dy }
     if (fits(s.board, a)) return { ...s, active: a }
   }

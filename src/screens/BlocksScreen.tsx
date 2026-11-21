@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { GameEngine } from '../core'
 import { COLS, PIECES, ROWS, cellsOf, drop, landing, move, newBlocks, rotate, tick, tickMs, type BlocksState, type LockResult } from '../games/blocks'
+import { plural } from '../labels'
 import { badgeTitles } from './badgeText'
 import { BLOCK_TEXT } from './Games'
 
@@ -21,7 +22,7 @@ interface Result {
 }
 
 /** Шаг свайпа в долях клетки. */
-const SWIPE_CELL = 0.9
+const SWIPE_CELL = 1
 
 /** «Блоки»: экран партии. Жизнь уже списана при входе. */
 export function BlocksScreen({ engine, act, onExit }: Props) {
@@ -222,6 +223,7 @@ export function BlocksScreen({ engine, act, onExit }: Props) {
       // «Доска» ящика: светлая полоса сверху.
       ctx.fillStyle = 'rgba(255,255,255,0.22)'
       ctx.fillRect(x * cell + 4, y * cell + 4, cell - 8, cell * 0.16)
+      ctx.fillStyle = '#000' // эмодзи берут прозрачность из fillStyle
       ctx.fillText(PIECES[piece].icon, x * cell + cell / 2, y * cell + cell / 2 + 2)
       ctx.globalAlpha = 1
     }
@@ -265,13 +267,18 @@ export function BlocksScreen({ engine, act, onExit }: Props) {
         nctx.roundRect(ox + x * cw + 1, oy + y * cw + 1, cw - 2, cw - 2, cw * 0.22)
         nctx.fill()
       }
+      nctx.fillStyle = '#000'
+      nctx.textAlign = 'center'
+      nctx.textBaseline = 'middle'
+      nctx.font = `${Math.floor(cw * 0.75)}px system-ui, "Apple Color Emoji", sans-serif`
+      nctx.fillText(PIECES[game.next].icon, ox + cw / 2, oy + cw / 2 + 1)
     }
   })
 
   // Жесты: тап — поворот, свайп в сторону — сдвиг, резкий свайп вниз — сброс.
-  const touch = useRef<{ x: number; y: number; t: number; moved: boolean } | null>(null)
+  const touch = useRef<{ x: number; y: number; x0: number; y0: number; t: number; moved: boolean; vertical: boolean } | null>(null)
   function onPointerDown(e: React.PointerEvent) {
-    touch.current = { x: e.clientX, y: e.clientY, t: Date.now(), moved: false }
+    touch.current = { x: e.clientX, y: e.clientY, x0: e.clientX, y0: e.clientY, t: Date.now(), moved: false, vertical: false }
     ;(e.target as Element).setPointerCapture?.(e.pointerId)
   }
   function onPointerMove(e: React.PointerEvent) {
@@ -279,6 +286,11 @@ export function BlocksScreen({ engine, act, onExit }: Props) {
     const c = canvas.current
     if (!t || !c) return
     const step = (c.clientWidth / COLS) * SWIPE_CELL
+    // Жест вниз: дальше вбок не двигаем, чтобы сброс не сдвигал фигуру.
+    const ddx = e.clientX - t.x0
+    const ddy = e.clientY - t.y0
+    if (!t.moved && ddy > 16 && ddy > Math.abs(ddx)) t.vertical = true
+    if (t.vertical) return
     const dx = e.clientX - t.x
     if (Math.abs(dx) >= step) {
       const n = Math.trunc(dx / step)
@@ -291,10 +303,11 @@ export function BlocksScreen({ engine, act, onExit }: Props) {
     const t = touch.current
     touch.current = null
     if (!t) return
-    const dy = e.clientY - t.y
+    const dy = e.clientY - t.y0
+    const dx = e.clientX - t.x0
     const dt = Date.now() - t.t
     if (dy > 60 && dt < 400 && !t.moved) control('drop')
-    else if (!t.moved && Math.abs(dy) < 12 && dt < 350) control('rotate')
+    else if (!t.moved && !t.vertical && Math.abs(dy) < 12 && Math.abs(dx) < 12 && dt < 350) control('rotate')
   }
 
   function togglePause() {
@@ -352,16 +365,17 @@ export function BlocksScreen({ engine, act, onExit }: Props) {
       </header>
 
       <div className="snake-score blocks-score">
-        <span>
+        <span className="blocks-points">
           Очки: {game.score}
-          <small className="muted"> · линии {game.lines}</small>
+          <small className="muted">
+            Линии: {game.lines} · рекорд {Math.max(record, result?.record ?? 0)}
+          </small>
         </span>
         <span className="blocks-next">
           <span className="muted">Дальше</span>
           <canvas ref={nextCanvas} className="blocks-next-canvas" role="img" aria-label={`Следующая фигура: ${PIECES[game.next].cells.length} ${PIECES[game.next].cells.length === 1 ? 'клетка' : PIECES[game.next].cells.length < 5 ? 'клетки' : 'клеток'}`} />
         </span>
       </div>
-      <p className="bubbles-hint muted">Рекорд: {Math.max(record, result?.record ?? 0)}</p>
 
       <div className="snake-board blocks-board">
         <canvas
@@ -409,7 +423,9 @@ export function BlocksScreen({ engine, act, onExit }: Props) {
             <h3 id="blocks-over" ref={overHead} tabIndex={-1}>
               {result.newRecord && result.score > 0 ? '★ Новый рекорд! ★' : 'Партия окончена'}
             </h3>
-            <p className="snake-final">{result.score} очков</p>
+            <p className="snake-final">
+              {result.score} {plural(result.score, 'очко', 'очка', 'очков')}
+            </p>
             <p className="muted">Собрано линий: {result.lines}</p>
             {result.newBadges.length > 0 && <p>Новый бейдж: {badgeTitles(result.newBadges)}</p>}
             {block && <p className="muted">{block === 'limitReached' ? BLOCK_TEXT.limitReached : 'Жизни закончились — новые придут в 06:00.'}</p>}

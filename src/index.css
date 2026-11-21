@@ -505,9 +505,13 @@ main {
 .bubbles-pad button:disabled { opacity: 0.5; cursor: default; }
 
 /* «Блоки» */
-.blocks-board { aspect-ratio: 8 / 14; width: min(100%, 380px, calc(58dvh * 8 / 14)); }
+.blocks-board { aspect-ratio: 8 / 14; width: min(100%, 400px, calc(60dvh * 8 / 14)); }
+.blocks-board .snake-overlay { padding: 10px; gap: 8px; font-size: 14px; }
+.blocks-board .row-btns { grid-template-columns: 1fr; gap: 8px; }
+.blocks-board .snake-final { font-size: 24px; }
 .blocks-score { align-items: center; }
-.blocks-score small { font-weight: 500; }
+.blocks-points { display: flex; flex-direction: column; }
+.blocks-score small { font-weight: 500; font-size: 14px; }
 .blocks-next { display: inline-flex; align-items: center; gap: 8px; font-weight: 500; }
 .blocks-next-canvas { width: 40px; height: 40px; display: block; }
 .blocks-pad { grid-template-columns: repeat(4, 1fr); }

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { GameEngine } from '../core'
 import { GRID, newGame, step, tickMs, turn, type Dir, type SnakeState } from '../games/snake'
+import { plural } from '../labels'
 import { badgeTitles } from './badgeText'
 import { BLOCK_TEXT } from './Games'
 
@@ -317,7 +318,9 @@ export function SnakeScreen({ engine, act, onExit }: Props) {
         {phase === 'over' && result && (
           <div className="snake-overlay" role="dialog" aria-modal="true" aria-labelledby="snake-over">
             <h3 id="snake-over" ref={overHead} tabIndex={-1}>{result.newRecord && result.score > 0 ? '★ Новый рекорд! ★' : 'Партия окончена'}</h3>
-            <p className="snake-final">{result.score} очков</p>
+            <p className="snake-final">
+              {result.score} {plural(result.score, 'очко', 'очка', 'очков')}
+            </p>
             {result.newBadges.length > 0 && <p>Новый бейдж: {badgeTitles(result.newBadges)}</p>}
             {block && <p className="muted">{block === 'limitReached' ? BLOCK_TEXT.limitReached : 'Жизни закончились — новые придут в 06:00.'}</p>}
             <div className="row-btns">

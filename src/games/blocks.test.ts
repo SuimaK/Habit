@@ -107,4 +107,23 @@ describe('Блоки', () => {
       }
     }
   })
+  it('поворот не протаскивает фигуру сквозь стенку из ящиков', () => {
+    let s = withPiece('duo')
+    const board = s.board.map((r) => [...r])
+    for (let y = 10; y < ROWS; y++) {
+      board[y][1] = 0
+      board[y][3] = 0
+    }
+    s = { ...s, board, active: { piece: pick('duo'), cells: [[0, -1], [0, 0]], x: 2, y: ROWS - 1 } }
+    const r = rotate(s)
+    expect(r).toBe(s)
+    for (const p of PIECES) {
+      // У стены поворот всё ещё срабатывает (сдвиг на одну клетку).
+      let t = withPiece(p.id)
+      t = { ...t, active: { ...t.active, y: 6 } }
+      t = rotate(t)
+      for (let i = 0; i < 10; i++) t = move(t, -1)
+      expect(fits(t.board, rotate(t).active)).toBe(true)
+    }
+  })
 })
