@@ -31,18 +31,18 @@ describe('игры', () => {
     expect(e.state.coins).toBe(0) // монеты за игры не даются
   })
 
-  it('рекорды игр раздельные; бейдж «Меткий глаз» за 500 в «Шариках»', () => {
+  it('рекорды игр раздельные; бейдж «Садовник» за 500 в «Грядке»', () => {
     const e = engine()
     e.finishGame('snack', 300, at(16))
-    expect(e.finishGame('bubbles', 120, at(16))).toEqual({ newRecord: true, record: 120, newBadges: [] })
-    expect(e.finishGame('bubbles', 520, at(16)).newBadges).toContain('bubbles500')
-    expect(e.state.games.records).toEqual({ snack: 300, bubbles: 520 })
+    expect(e.finishGame('lines', 120, at(16))).toEqual({ newRecord: true, record: 120, newBadges: [] })
+    expect(e.finishGame('lines', 520, at(16)).newBadges).toContain('lines500')
+    expect(e.state.games.records).toEqual({ snack: 300, lines: 520 })
     expect(e.finishGame('blocks', 1000, at(16)).newBadges).toEqual(['blocks1000'])
   })
 
   it('loadState чистит игры', () => {
-    const s = loadState({ habits: [], games: { records: { snack: 50.4, x: 9, blocks: -1 }, playedByDay: { [d(1)]: 30, bad: 5, [d(2)]: 'x' }, limitMin: 9999 } })
-    expect(s.games).toEqual({ records: { snack: 50 }, playedByDay: { [d(1)]: 30 }, limitMin: 20 })
+    const s = loadState({ habits: [], games: { records: { snack: 50.4, x: 9, blocks: -1, bubbles: 400, lines: 77 }, playedByDay: { [d(1)]: 30, bad: 5, [d(2)]: 'x' }, limitMin: 9999 } })
+    expect(s.games).toEqual({ records: { snack: 50, lines: 77 }, playedByDay: { [d(1)]: 30 }, limitMin: 20 })
     expect(loadState({ habits: [] }).games.limitMin).toBe(20)
   })
 })

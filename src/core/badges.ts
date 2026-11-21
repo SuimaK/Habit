@@ -52,7 +52,7 @@ export const BADGES: BadgeDef[] = [
   { id: 'level10', title: 'Адепт', description: 'Достигнут 10-й уровень', rarity: 'rare', icon: '🏅', earned: (c) => c.level >= 10 },
   { id: 'month', title: 'Месяц в ритме', description: 'Общая серия 30 дней', rarity: 'rare', icon: '🔥', earned: (c) => c.bestStreak >= 30 },
   { id: 'snack100', title: 'Гурман', description: '100 очков в «Перекусе»', rarity: 'rare', icon: '🥕', earned: (c) => (c.gameRecords.snack ?? 0) >= 100 },
-  { id: 'bubbles500', title: 'Меткий глаз', description: '500 очков в «Шариках»', rarity: 'rare', icon: '🫧', earned: (c) => (c.gameRecords.bubbles ?? 0) >= 500 },
+  { id: 'lines500', title: 'Садовник', description: '500 очков в «Грядке»', rarity: 'rare', icon: '🧺', earned: (c) => (c.gameRecords.lines ?? 0) >= 500 },
   { id: 'blocks1000', title: 'Прораб', description: '1000 очков в «Блоках»', rarity: 'rare', icon: '🧱', earned: (c) => (c.gameRecords.blocks ?? 0) >= 1000 },
   { id: 'habit30', title: 'Железная воля', description: 'Одна привычка 30 раз подряд по плану', rarity: 'legendary', icon: '💎', earned: (c) => c.bestHabitStreak >= 30 },
 ]
