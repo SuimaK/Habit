@@ -46,23 +46,23 @@ describe('Шарики', () => {
   })
 
   it('три одного цвета лопаются', () => {
-    const s = board({ 0: { 0: 0, 1: 0, 2: 0, 3: 0, 4: 1, 5: 1, 6: 0, 7: 0, 8: 0 } }, { current: 1, next: 0 })
+    const s = board({ 0: { 0: 0, 1: 0, 2: 0, 3: 1, 4: 1, 5: 0, 6: 0, 7: 0, 8: 0 } }, { current: 1, next: 0 })
     const res = shoot(s, UP, rnd)
-    expect(res.placed).toEqual({ row: 1, col: 4 })
+    expect(res.placed).toEqual({ row: 1, col: 3 })
     expect(res.popped).toHaveLength(3)
     expect(res.dropped).toHaveLength(0)
     expect(res.state.score).toBe(30)
+    expect(res.state.grid[0][3]).toBeNull()
     expect(res.state.grid[0][4]).toBeNull()
-    expect(res.state.grid[0][5]).toBeNull()
     expect(res.state.grid[0][0]).toBe(0)
     expect(res.state.won).toBe(false)
   })
 
   it('оторвавшиеся падают и дают больше очков; пустое поле — победа', () => {
-    const s = board({ 0: { 4: 1, 5: 1 }, 1: { 5: 2 } }, { current: 1, next: 2 })
+    const s = board({ 0: { 3: 1, 4: 1 }, 1: { 2: 2 } }, { current: 1, next: 2 })
     const res = shoot(s, UP, rnd)
     expect(res.popped).toHaveLength(3)
-    expect(res.dropped).toEqual([[1, 5]])
+    expect(res.dropped).toEqual([[1, 2]])
     expect(res.state.score).toBe(50 + WIN_BONUS)
     expect(res.state.won).toBe(true)
     expect(res.state.over).toBe(true)
@@ -122,6 +122,27 @@ describe('Шарики', () => {
     expect(res.placed.row).toBe(ROWS - 1)
     expect(res.state.over).toBe(true)
     expect(res.state.won).toBe(false)
+  })
+
+  it('новый ряд — из цветов, что есть на поле (не меньше трёх)', () => {
+    let seed = 7
+    const r = () => ((seed = (seed * 16807) % 2147483647) / 2147483647)
+    for (let t = 0; t < 30; t++) {
+      const s = board({ 0: { 0: 2, 1: 3, 7: 2, 8: 3 } }, { current: 4, next: 4, shotsSincePop: SHOTS_PER_ROW - 1 })
+      const res = shoot(s, UP, r)
+      expect(res.rowAdded).toBe(true)
+      const fresh = res.state.grid[0].filter((c) => c !== null)
+      // На поле 2, 3 и только что поставленный 4.
+      expect(fresh.every((c) => c === 2 || c === 3 || c === 4)).toBe(true)
+    }
+    const two = board({ 0: { 0: 2, 8: 3 } }, { current: 2, next: 2, shotsSincePop: SHOTS_PER_ROW - 1 })
+    const colors = new Set<number>()
+    for (let t = 0; t < 30; t++) for (const c of shoot(two, { x: 0.3, y: -1 }, r).state.grid[0]) if (c !== null) colors.add(c)
+    expect(colors.size).toBe(3)
+  })
+
+  it('поле по центру: пушка посередине, ряды упираются в обе стены', () => {
+    expect(WIDTH).toBe(COLS * 2 * R)
   })
 
   it('прицел не уходит вниз и в горизонталь', () => {

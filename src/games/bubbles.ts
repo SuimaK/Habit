@@ -8,10 +8,12 @@ export const COLS = 9
 export const ROWS = 13 // ряд 12 — линия проигрыша
 export const R = 1
 export const ROW_H = Math.sqrt(3) * R
-export const WIDTH = COLS * 2 * R + R
+export const WIDTH = COLS * 2 * R
 export const HEIGHT = (ROWS - 1) * ROW_H + 2 * R + 3 * R // поле + место для пушки
 export const SHOOTER = { x: WIDTH / 2, y: HEIGHT - 1.5 * R }
 export const START_ROWS = 5
+/** Цветов в начале партии (5-й цвет в запасе). */
+export const START_COLORS = 4
 /** Через столько выстрелов без хлопка сверху добавляется ряд. */
 export const SHOTS_PER_ROW = 6
 export const POP_POINTS = 10
@@ -67,10 +69,17 @@ function neighbors(s: Pick<BubblesState, 'shift'>, row: number, col: number): [n
 
 const emptyRow = (): Cell[] => Array(COLS).fill(null)
 
-function randomRow(s: Pick<BubblesState, 'shift'>, row: number, rnd: () => number, colors: number): Cell[] {
+function randomRow(s: Pick<BubblesState, 'shift'>, row: number, rnd: () => number, palette: ColorId[]): Cell[] {
   const r = emptyRow()
-  for (let c = 0; c < colsIn(s, row); c++) r[c] = Math.floor(rnd() * colors)
+  for (let c = 0; c < colsIn(s, row); c++) r[c] = palette[Math.min(palette.length - 1, Math.floor(rnd() * palette.length))]
   return r
+}
+
+/** Новый ряд — из цветов, что остались на поле; если их меньше трёх, добавляем из стартовых. */
+function rowPalette(s: BubblesState): ColorId[] {
+  const p = colorsOnBoard(s)
+  for (let c = 0; p.length < 3 && c < START_COLORS; c++) if (!p.includes(c)) p.push(c)
+  return p
 }
 
 /** Цвета, которые ещё есть на поле (в них и стреляем). */
@@ -88,7 +97,7 @@ function pickColor(s: BubblesState, rnd: () => number): ColorId {
 
 export function newBubbles(rnd: () => number): BubblesState {
   const s: BubblesState = { grid: [], shift: 0, current: 0, next: 0, score: 0, shotsSincePop: 0, over: false, won: false }
-  for (let r = 0; r < ROWS; r++) s.grid.push(r < START_ROWS ? randomRow(s, r, rnd, 4) : emptyRow())
+  for (let r = 0; r < ROWS; r++) s.grid.push(r < START_ROWS ? randomRow(s, r, rnd, [0, 1, 2, 3].slice(0, START_COLORS)) : emptyRow())
   s.current = pickColor(s, rnd)
   s.next = pickColor(s, rnd)
   return s
@@ -226,7 +235,7 @@ export function shoot(prev: BubblesState, dir: Point, rnd: () => number): ShotRe
     if (s.shotsSincePop >= SHOTS_PER_ROW) {
       // Новый ряд сверху: всё сдвигается вниз, чётность меняется.
       s.shift = (s.shift + 1) % 2
-      const fresh = randomRow(s, 0, rnd, Math.max(3, colorsOnBoard(s).length))
+      const fresh = randomRow(s, 0, rnd, rowPalette(s))
       s.grid = [fresh, ...s.grid.slice(0, ROWS - 1)]
       // В сдвинутых рядах лишняя крайняя клетка не используется.
       for (let r = 0; r < ROWS; r++) if (colsIn(s, r) < COLS) s.grid[r][COLS - 1] = null

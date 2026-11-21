@@ -5,6 +5,7 @@ import {
   HEIGHT,
   R,
   ROWS,
+  ROW_H,
   SHOOTER,
   SHOTS_PER_ROW,
   WIDTH,
@@ -62,6 +63,9 @@ const AIM_STEP = Math.PI / 60 // 3°
 /** Место «следующего» шарика (тап по нему — поменять). */
 const NEXT_AT: Point = { x: SHOOTER.x - 4 * R, y: SHOOTER.y + 0.2 * R }
 
+/** Отпустить палец ниже линии проигрыша — передумать, без выстрела. */
+const CANCEL_Y = (ROWS - 1) * ROW_H
+
 const reduceMotion = () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false
 
 /** «Шарики»: экран партии. Жизнь уже списана при входе. */
@@ -72,6 +76,10 @@ export function BubblesScreen({ engine, act, onExit }: Props) {
   const [confirmExit, setConfirmExit] = useState(false)
   const [aim, setAim] = useState<Point>({ x: 0, y: -1 })
   const [flying, setFlying] = useState(false)
+  /** Палец ниже линии — выстрела не будет, прицел прячем. */
+  const [cancelAim, setCancelAim] = useState(false)
+  const cancelRef = useRef(false)
+  cancelRef.current = cancelAim
   const confirmExitRef = useRef(false)
   confirmExitRef.current = confirmExit
   const canvas = useRef<HTMLCanvasElement>(null)
@@ -143,6 +151,7 @@ export function BubblesScreen({ engine, act, onExit }: Props) {
       if (shot.state.over) {
         if (!shot.state.won) navigator.vibrate?.(120)
         setResult({ score: shot.state.score, won: shot.state.won, ...commit(shot.state.score) })
+        setConfirmExit(false)
         setPhase('over')
       }
     },
@@ -225,6 +234,8 @@ export function BubblesScreen({ engine, act, onExit }: Props) {
         ev.preventDefault()
         doSwap()
       } else if (ev.key === ' ') {
+        // Пробел на кнопке — это нажатие кнопки, не пауза.
+        if ((ev.target as HTMLElement)?.tagName === 'BUTTON') return
         ev.preventDefault()
         togglePause()
       }
@@ -303,7 +314,7 @@ export function BubblesScreen({ engine, act, onExit }: Props) {
       const fl = flight.current
       const ph = phaseRef.current
       // Прицел: пунктир по траектории с отскоками.
-      if (!fl && (ph === 'running' || ph === 'ready') && !g.over) {
+      if (!fl && !cancelRef.current && (ph === 'running' || ph === 'ready') && !g.over) {
         const { path } = trace(g, aimRef.current)
         ctx.strokeStyle = css.getPropertyValue('--aim').trim() || 'rgba(60,70,60,0.45)'
         ctx.lineWidth = 0.12
@@ -358,7 +369,7 @@ export function BubblesScreen({ engine, act, onExit }: Props) {
     return () => cancelAnimationFrame(raf.current)
   })
 
-  // Пауза во время полёта: замораживаем полёт, чтобы шарик не «перепрыгнул».
+  // Пауза во время полёта: шарик сразу встаёт на место.
   useEffect(() => {
     if (phase === 'paused' && flight.current) land(flight.current.shot)
   }, [phase, land])
@@ -381,26 +392,29 @@ export function BubblesScreen({ engine, act, onExit }: Props) {
     if (confirmExit) return
     const p = toBoard(e)
     if (!p) return
-    if (Math.hypot(p.x - NEXT_AT.x, p.y - NEXT_AT.y) < 1.6 * R) {
+    if (Math.hypot(p.x - NEXT_AT.x, p.y - NEXT_AT.y) < 1.9 * R) {
       doSwap()
       return
     }
     aiming.current = true
     ;(e.target as Element).setPointerCapture?.(e.pointerId)
+    setCancelAim(p.y > CANCEL_Y)
     aimAt(p)
   }
   function onPointerMove(e: React.PointerEvent) {
     const p = toBoard(e)
     if (!p) return
     // Мышью можно целиться без нажатия.
+    if (aiming.current) setCancelAim(p.y > CANCEL_Y)
     if (aiming.current || (e.pointerType === 'mouse' && (phase === 'running' || phase === 'ready') && !confirmExit)) aimAt(p)
   }
   function onPointerUp(e: React.PointerEvent) {
     if (!aiming.current) return
     aiming.current = false
+    setCancelAim(false)
     const p = toBoard(e)
-    // Отпустили ниже пушки — передумали, не стреляем.
-    if (p && p.y < SHOOTER.y - R * 0.5) fire()
+    // Отпустили ниже линии — передумали, не стреляем.
+    if (p && p.y <= CANCEL_Y) fire()
   }
 
   function togglePause() {
@@ -465,7 +479,7 @@ export function BubblesScreen({ engine, act, onExit }: Props) {
         <span>Очки: {game.score}</span>
         <span className="muted">Рекорд: {Math.max(record, result?.record ?? 0)}</span>
       </div>
-      <p className="bubbles-hint muted">
+      <p className="bubbles-hint muted" style={{ visibility: phase === 'over' ? 'hidden' : undefined }}>
         До нового ряда: {toRow} {plural(toRow, 'промах', 'промаха', 'промахов')}
       </p>
 
@@ -478,12 +492,15 @@ export function BubblesScreen({ engine, act, onExit }: Props) {
           onPointerDown={onPointerDown}
           onPointerMove={onPointerMove}
           onPointerUp={onPointerUp}
-          onPointerCancel={() => (aiming.current = false)}
+          onPointerCancel={() => {
+            aiming.current = false
+            setCancelAim(false)
+          }}
         />
         {phase === 'ready' && (
           <div className="snake-overlay">
             <p>Стреляй шариками: три и больше одинаковых лопаются, а всё, что под ними висело, падает.</p>
-            <p className="muted">Веди пальцем по полю и отпусти, чтобы выстрелить. Тап по маленькому шарику — поменять. Если выйти до старта, жизнь вернётся.</p>
+            <p className="muted">Веди пальцем по полю и отпусти — выстрел. Передумал — уведи палец ниже пунктирной линии. Тап по маленькому шарику — поменять. Если выйти до старта, жизнь вернётся.</p>
             <button type="button" className="btn primary" onClick={() => setPhase('running')}>
               Старт
             </button>
@@ -492,7 +509,7 @@ export function BubblesScreen({ engine, act, onExit }: Props) {
         {phase === 'paused' && !confirmExit && (
           <div className="snake-overlay">
             <p>Пауза</p>
-            <button type="button" className="btn primary" onClick={() => setPhase('running')}>
+            <button type="button" className="btn primary" onClick={() => setPhase('running')} autoFocus>
               Продолжить
             </button>
           </div>

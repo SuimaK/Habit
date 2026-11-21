@@ -495,11 +495,19 @@ main {
 .settings-h { margin: 0; font-size: 17px; }
 
 /* «Шарики» */
-:root { --aim: rgba(60, 70, 60, 0.45); --danger-line: #c9796a; }
+:root { --aim: rgba(50, 60, 50, 0.62); --danger-line: #b4604f; }
 @media (prefers-color-scheme: dark) { :root { --aim: rgba(220, 230, 220, 0.45); --danger-line: #d98f7f; } }
-.bubbles-board { aspect-ratio: 19 / 25.785; width: min(100%, 440px, calc(60dvh * 0.737)); }
+.bubbles-board { aspect-ratio: 18 / 25.785; width: min(100%, 440px, calc(60dvh * 0.698)); }
 .bubbles-hint { margin: -4px 0 0; padding: 0 4px; font-size: 14px; }
 .bubbles-pad { display: grid; grid-template-columns: 56px 1fr 56px 56px; gap: 8px; width: min(100%, 440px); margin: 0 auto; }
 .bubbles-pad button { height: 52px; border-radius: 16px; border: 1.5px solid var(--line); background: var(--card); color: var(--accent-text); font-size: 20px; font-weight: 700; cursor: pointer; touch-action: manipulation; }
 .bubbles-pad .fire { font-size: 17px; }
 .bubbles-pad button:disabled { opacity: 0.5; cursor: default; }
+
+/* «Блоки» */
+.blocks-board { aspect-ratio: 8 / 14; width: min(100%, 380px, calc(58dvh * 8 / 14)); }
+.blocks-score { align-items: center; }
+.blocks-score small { font-weight: 500; }
+.blocks-next { display: inline-flex; align-items: center; gap: 8px; font-weight: 500; }
+.blocks-next-canvas { width: 40px; height: 40px; display: block; }
+.blocks-pad { grid-template-columns: repeat(4, 1fr); }

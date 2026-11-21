@@ -80,6 +80,7 @@ export function SnakeScreen({ engine, act, onExit }: Props) {
       if (!next.alive) {
         navigator.vibrate?.(120)
         setResult({ score: next.score, ...commit(next.score) })
+        setConfirmExit(false)
         setPhase('over')
         return
       }
@@ -146,6 +147,8 @@ export function SnakeScreen({ engine, act, onExit }: Props) {
         ev.preventDefault()
         steer(d)
       } else if (ev.key === ' ') {
+        // Пробел на кнопке — это нажатие кнопки, не пауза.
+        if ((ev.target as HTMLElement)?.tagName === 'BUTTON') return
         ev.preventDefault()
         togglePause()
       }
@@ -293,7 +296,7 @@ export function SnakeScreen({ engine, act, onExit }: Props) {
         {phase === 'paused' && !confirmExit && (
           <div className="snake-overlay">
             <p>Пауза</p>
-            <button type="button" className="btn primary" onClick={() => setPhase('running')}>
+            <button type="button" className="btn primary" onClick={() => setPhase('running')} autoFocus>
               Продолжить
             </button>
           </div>
