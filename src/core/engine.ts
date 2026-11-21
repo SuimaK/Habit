@@ -24,7 +24,9 @@ import {
   CUSTOM_QUEST_MAX,
   CUSTOM_QUEST_NAME_MAX,
   CUSTOM_QUEST_REWARD,
+  customClaimsThisWeek,
   customProgress,
+  pendingLastWeek,
   validateCustomQuest,
   type CustomQuest,
   type CustomQuestError,
@@ -101,6 +103,8 @@ export const initialState = (): GameState => ({
 })
 
 /** Загрузить сохранённое состояние: недостающие поля (из старых версий) берутся по умолчанию. */
+const isDay = (d: unknown): d is Day => typeof d === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d)
+
 export function loadState(raw: unknown): GameState {
   const base = initialState()
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return base
@@ -169,15 +173,15 @@ export function loadState(raw: unknown): GameState {
       .filter((x, i, all) => all.findIndex((y) => y.id === x.id) === i)
       .map((x) => ({ ...x, price: Math.round(x.price) })),
     customQuests: arr<CustomQuest>(r.customQuests, [])
-      .filter((x) => x && typeof x === 'object' && typeof x.id === 'string' && typeof x.name === 'string')
+      .filter((x) => x && typeof x === 'object' && typeof x.id === 'string' && typeof x.name === 'string' && x.name.trim() !== '')
       .filter((x, i, all) => all.findIndex((y) => y.id === x.id) === i)
       .map((x) => ({
         id: x.id,
         name: x.name.slice(0, CUSTOM_QUEST_NAME_MAX),
         difficulty: x.difficulty === 'medium' || x.difficulty === 'hard' ? x.difficulty : 'easy',
         target: Math.min(7, Math.max(1, Math.round(num(x.target, 1)))),
-        marks: [...new Set(arr<Day>(x.marks, []).filter((d) => typeof d === 'string'))],
-        claimedWeeks: [...new Set(arr<Day>(x.claimedWeeks, []).filter((d) => typeof d === 'string'))],
+        marks: [...new Set(arr<Day>(x.marks, []).filter(isDay))],
+        claimedWeeks: [...new Set(arr<Day>(x.claimedWeeks, []).filter(isDay))],
         ...(x.archived === true ? { archived: true } : {}),
       })),
     profile:
@@ -482,7 +486,9 @@ export class GameEngine {
     if (weekStart(day) !== weekStart(today)) return fail('notThisWeek')
     if (customProgress(q, today).claimed) return fail('claimed')
     const has = q.marks.includes(day)
-    q.marks = has ? q.marks.filter((d) => d !== day) : [...q.marks, day]
+    // Старше прошлой недели отметки не нужны — не копим их.
+    const keepFrom = addDays(weekStart(today), -7)
+    q.marks = (has ? q.marks.filter((d) => d !== day) : [...q.marks, day]).filter((d) => d >= keepFrom)
     return ok(!has)
   }
 
@@ -492,9 +498,12 @@ export class GameEngine {
     const q = this.state.customQuests.find((x) => x.id === id && !x.archived)
     if (!q) return fail('notFound')
     const p = customProgress(q, today)
-    if (p.claimed) return fail('claimed')
-    if (!p.complete) return fail('notReady')
-    q.claimedWeeks.push(weekStart(today))
+    // Награду за выполненную прошлую неделю можно забрать и в понедельник — она не пропадает.
+    const week = p.complete && !p.claimed ? weekStart(today) : pendingLastWeek(q, today) ? addDays(weekStart(today), -7) : null
+    if (!week) return fail(p.claimed ? 'claimed' : 'notReady')
+    // Не больше CUSTOM_QUEST_MAX наград в неделю — иначе «создать → забрать → удалить» даёт бесконечные монеты.
+    if (customClaimsThisWeek(this.state.customQuests, week) >= CUSTOM_QUEST_MAX) return fail('weeklyLimit')
+    q.claimedWeeks.push(week)
     this.state.quests.claimedCount++
     const reward = CUSTOM_QUEST_REWARD[q.difficulty]
     const ev = this.award(reward.xp, reward.coins, now)

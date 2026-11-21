@@ -3,8 +3,10 @@ import {
   CUSTOM_QUEST_MAX,
   CUSTOM_QUEST_NAME_MAX,
   CUSTOM_QUEST_REWARD,
+  customClaimsThisWeek,
   customProgress,
   dayOf,
+  pendingLastWeek,
   weekDays,
   type CustomQuest,
   type CustomQuestError,
@@ -23,10 +25,11 @@ const CUSTOM_ERRORS: Record<CustomQuestError, string> = {
   badTarget: 'Дней в неделю — от 1 до 7',
   tooMany: `Своих квестов может быть до ${CUSTOM_QUEST_MAX}`,
   notFound: 'Квест не найден — список обновился',
-  notThisWeek: 'Отмечать можно только дни этой недели',
+  notThisWeek: 'Началась новая неделя — отметки начинаются заново',
   future: 'Этот день ещё не наступил',
   claimed: 'Награда за эту неделю уже получена',
   notReady: 'Отметь ещё дни, и награду можно будет забрать',
+  weeklyLimit: `На этой неделе уже получено ${CUSTOM_QUEST_MAX} наград за свои квесты — следующие с понедельника`,
 }
 
 interface Props {
@@ -47,6 +50,7 @@ export function CustomQuests({ engine, now, act, report, say }: Props) {
   const today = dayOf(now)
   const days = weekDays(today)
   const quests = engine.state.customQuests.filter((q) => !q.archived)
+  const claimsLeft = CUSTOM_QUEST_MAX - customClaimsThisWeek(engine.state.customQuests, today)
   const [editing, setEditing] = useState<Draft | null>(null)
   const head = useRef<HTMLHeadingElement>(null)
   const refocus = useRef(false)
@@ -91,6 +95,7 @@ export function CustomQuests({ engine, now, act, report, say }: Props) {
             quest={q}
             today={today}
             days={days}
+            claimsLeft={claimsLeft}
             onEdit={() => setEditing({ id: q.id, name: q.name, difficulty: q.difficulty, target: q.target })}
             onToggle={(day) => {
               const r = act((e, at) => e.toggleCustomMark(q.id, day, at))
@@ -106,6 +111,9 @@ export function CustomQuests({ engine, now, act, report, say }: Props) {
       )}
       {editing && !quests.some((q) => q.id === editing.id) && (
         <QuestForm initial={editing} onSave={(d) => act((e) => e.addCustomQuest(d))} onClose={close} />
+      )}
+      {!editing && quests.length >= CUSTOM_QUEST_MAX && (
+        <p className="muted custom-limit">Своих квестов может быть до {CUSTOM_QUEST_MAX}. Чтобы добавить новый, убери один из этих.</p>
       )}
       {!editing && quests.length < CUSTOM_QUEST_MAX && (
         <button
@@ -124,6 +132,7 @@ function QuestCard({
   quest,
   today,
   days,
+  claimsLeft,
   onEdit,
   onToggle,
   onClaim,
@@ -131,16 +140,19 @@ function QuestCard({
   quest: CustomQuest
   today: string
   days: string[]
+  claimsLeft: number
   onEdit: () => void
   onToggle: (day: string) => void
   onClaim: () => void
 }) {
   const p = customProgress(quest, today)
+  const late = !p.complete && pendingLastWeek(quest, today)
   const reward = CUSTOM_QUEST_REWARD[quest.difficulty]
   return (
     <article className="card custom-quest" aria-label={quest.name}>
-      <button type="button" className="row custom-title" onClick={onEdit} aria-label={`Изменить квест «${quest.name}»`}>
+      <button type="button" className="row custom-title" onClick={onEdit}>
         <span className="row-text">
+          <span className="sr-only">Изменить квест: </span>
           <span className="quest-title">{quest.name}</span>
           <small>
             {quest.target} {plural(quest.target, 'день', 'дня', 'дней')} из 7 · {DIFFICULTY_LABEL[quest.difficulty]} · {reward.xp} XP · {reward.coins} 🪙
@@ -162,6 +174,7 @@ function QuestCard({
               aria-pressed={on}
               aria-label={`${WEEKDAYS[i]}, ${fmtDay(day)}${day === today ? ', сегодня' : ''}`}
               disabled={future || p.claimed}
+              data-future={future || undefined}
               onClick={() => onToggle(day)}
             >
               <small aria-hidden>{WEEKDAYS[i]}</small>
@@ -173,13 +186,26 @@ function QuestCard({
       <div className="custom-foot">
         <Progress done={p.done} target={p.target} />
         {p.claimed ? (
-          <span className="quest-done">Получено ✓</span>
-        ) : p.complete ? (
+          <span className="quest-done">
+            Получено<span aria-hidden> ✓</span>
+          </span>
+        ) : p.complete && claimsLeft > 0 ? (
           <button type="button" className="btn primary small" onClick={onClaim} aria-label={`Забрать награду: ${quest.name}`}>
             Забрать
           </button>
         ) : null}
       </div>
+      {late && claimsLeft > 0 && (
+        <div className="custom-late">
+          <span>Прошлая неделя выполнена — награда ждёт тебя.</span>
+          <button type="button" className="btn primary small" onClick={onClaim} aria-label={`Забрать награду за прошлую неделю: ${quest.name}`}>
+            Забрать
+          </button>
+        </div>
+      )}
+      {(p.complete || late) && !p.claimed && claimsLeft <= 0 && (
+        <p className="muted custom-limit">Лимит наград за свои квесты на этой неделе исчерпан — продолжай, новые с понедельника.</p>
+      )}
     </article>
   )
 }

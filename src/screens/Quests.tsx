@@ -67,11 +67,10 @@ export function Quests({ engine, now, act }: Props) {
         </button>
       </div>
 
-      {message && (
-        <p className="notice" role="status">
-          {message}
-        </p>
-      )}
+      {/* Всегда в DOM (живой регион), закреплено сверху — видно при любой прокрутке. */}
+      <div className={`home-notice ${message ? 'on' : ''}`}>
+        <span role="status">{message ?? ''}</span>
+      </div>
 
       {tab === 'day' && (
         <section className="card list-card">

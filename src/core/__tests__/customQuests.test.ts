@@ -54,10 +54,38 @@ describe('свои квесты', () => {
     expect(err(e.updateCustomQuest({ id: 'w', name: 'x', difficulty: 'easy', target: 1 }))).toBe('notFound')
   })
 
+  it('цикл «создать → забрать → удалить» не даёт больше 5 наград в неделю', () => {
+    const e = engine()
+    for (let i = 0; i < 7; i++) {
+      add(e, 1, `c${i}`)
+      must(e.toggleCustomMark(`c${i}`, d(16), at(16)))
+      const r = e.claimCustom(`c${i}`, at(16))
+      expect(err(r)).toBe(i < 5 ? 'ok' : 'weeklyLimit')
+      e.removeCustomQuest(`c${i}`)
+    }
+    expect(e.state.quests.claimedCount).toBe(5)
+  })
+
+  it('награду за выполненную прошлую неделю можно забрать в понедельник', () => {
+    const e = engine()
+    add(e, 1)
+    must(e.toggleCustomMark('q', d(22), at(22, 23, 59)))
+    expect(err(e.toggleCustomMark('q', d(22), at(23)))).toBe('notThisWeek')
+    const ev = must(e.claimCustom('q', at(23)))
+    expect(ev.xp).toBe(CUSTOM_QUEST_REWARD.medium.xp)
+    expect(e.state.customQuests[0].claimedWeeks).toEqual([d(16)])
+    expect(err(e.claimCustom('q', at(23)))).toBe('notReady')
+    // Две недели назад — уже нет.
+    const f = engine()
+    add(f, 1)
+    must(f.toggleCustomMark('q', d(22), at(22)))
+    expect(err(f.claimCustom('q', at(30)))).toBe('notReady')
+  })
+
   it('loadState чистит свои квесты', () => {
     const s = loadState({
       habits: [],
-      customQuests: [{ id: 'a', name: 'x', difficulty: 'weird', target: 99, marks: [d(1), d(1), 5] }, { id: 'a', name: 'dup' }, { name: 'no id' }, null],
+      customQuests: [{ id: 'a', name: 'x', difficulty: 'weird', target: 99, marks: [d(1), d(1), 5, 'junk'] }, { id: 'a', name: 'dup' }, { id: 'e', name: '  ' }, { name: 'no id' }, null],
     })
     expect(s.customQuests).toEqual([{ id: 'a', name: 'x', difficulty: 'easy', target: 7, marks: [d(1)], claimedWeeks: [] }])
   })

@@ -27,7 +27,7 @@ export interface CustomQuest {
   archived?: boolean
 }
 
-export type CustomQuestError = 'emptyName' | 'badTarget' | 'tooMany' | 'notFound' | 'notThisWeek' | 'future' | 'claimed' | 'notReady'
+export type CustomQuestError = 'emptyName' | 'badTarget' | 'tooMany' | 'notFound' | 'notThisWeek' | 'future' | 'claimed' | 'notReady' | 'weeklyLimit'
 
 export function validateCustomQuest(q: Pick<CustomQuest, 'name' | 'target' | 'difficulty'>): CustomQuestError | null {
   if (!q.name.trim()) return 'emptyName'
@@ -42,7 +42,22 @@ export function weekDays(today: Day): Day[] {
 }
 
 export function customProgress(q: CustomQuest, today: Day): { done: number; target: number; complete: boolean; claimed: boolean } {
-  const start = weekStart(today)
+  return weekProgress(q, weekStart(today))
+}
+
+function weekProgress(q: CustomQuest, start: Day) {
   const done = q.marks.filter((d) => d >= start && daysBetween(start, d) < 7).length
   return { done: Math.min(done, q.target), target: q.target, complete: done >= q.target, claimed: q.claimedWeeks.includes(start) }
+}
+
+/** Прошлая неделя выполнена, а награда не забрана (например, не успела до полуночи воскресенья). */
+export function pendingLastWeek(q: CustomQuest, today: Day): boolean {
+  const p = weekProgress(q, addDays(weekStart(today), -7))
+  return p.complete && !p.claimed
+}
+
+/** Сколько наград за свои квесты уже получено на этой неделе (включая удалённые квесты). */
+export function customClaimsThisWeek(all: CustomQuest[], today: Day): number {
+  const start = weekStart(today)
+  return all.filter((q) => q.claimedWeeks.includes(start)).length
 }

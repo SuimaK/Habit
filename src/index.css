@@ -457,3 +457,11 @@ main {
 .custom-days button.on { background: color-mix(in srgb, var(--good) 22%, var(--card)); border-color: var(--good-text); color: var(--good-text); }
 .custom-days button:disabled { opacity: 0.45; cursor: default; }
 .custom-foot { display: grid; grid-template-columns: 1fr auto; gap: 12px; align-items: center; }
+.custom-days button { border-color: color-mix(in srgb, var(--ink) 35%, var(--card)); }
+.custom-days button:disabled { opacity: 1; }
+.custom-days button[data-future] { opacity: 0.6; border-style: dashed; }
+.custom-days button:disabled:not(.on) small { color: var(--muted); }
+.custom-days { gap: 4px; }
+.custom-late { display: flex; align-items: center; gap: 10px; justify-content: space-between; background: color-mix(in srgb, var(--good) 16%, var(--card)); border-radius: 12px; padding: 8px 8px 8px 12px; }
+.custom-limit { margin: 0; font-size: 13px; }
+@media (max-width: 360px) { .custom-quest { padding-left: 8px; padding-right: 8px; } .custom-days { gap: 3px; } }
