@@ -1,35 +1,30 @@
 import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
-import './App.css'
+import { TabBar, type Tab } from './components/TabBar'
+import { Today } from './screens/Today'
+import { useGame } from './useGame'
 
-function App() {
-  const [count, setCount] = useState(0)
-
-  return (
-    <>
-      <div>
-        <a href="https://vite.dev" target="_blank">
-          <img src={viteLogo} className="logo" alt="Vite logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <h1>Vite + React</h1>
-      <div className="card">
-        <button onClick={() => setCount((count) => count + 1)}>
-          count is {count}
-        </button>
-        <p>
-          Edit <code>src/App.tsx</code> and save to test HMR
-        </p>
-      </div>
-      <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
-      </p>
-    </>
-  )
+const SOON: Record<Exclude<Tab, 'today'>, string> = {
+  quests: 'Квесты появятся в блоке 4',
+  games: 'Мини-игры появятся в блоке 7',
+  progress: 'Прогресс появится позже',
+  home: 'Дом и магазин появятся в блоке 6',
 }
 
-export default App
+export default function App() {
+  const { engine, now, act } = useGame()
+  const [tab, setTab] = useState<Tab>('today')
+  return (
+    <div className="app">
+      <main>
+        {tab === 'today' ? (
+          <Today engine={engine} now={now} act={act} />
+        ) : (
+          <div className="screen soon">
+            <p>{SOON[tab]}</p>
+          </div>
+        )}
+      </main>
+      <TabBar tab={tab} onChange={setTab} />
+    </div>
+  )
+}
