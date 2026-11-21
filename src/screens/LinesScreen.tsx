@@ -177,6 +177,11 @@ export function LinesScreen({ engine, act, onExit }: Props) {
   useEffect(() => {
     const flush = () => {
       stopClock()
+      // Последний ход ещё анимируется — итог не сохранён, сохраняем сейчас.
+      if (anim.current?.res.state.over) {
+        finish(anim.current.res)
+        return
+      }
       if (playMs.current > 0 && !gameRef.current.over) {
         const seconds = playMs.current / 1000
         const score = gameRef.current.score
@@ -195,7 +200,7 @@ export function LinesScreen({ engine, act, onExit }: Props) {
       document.removeEventListener('visibilitychange', onHide)
       window.removeEventListener('pagehide', flush)
     }
-  }, [stopClock, act])
+  }, [stopClock, act, finish])
 
   useEffect(() => {
     const bump = () => setRedraw((n) => n + 1)
@@ -230,6 +235,7 @@ export function LinesScreen({ engine, act, onExit }: Props) {
         pick(cursor)
       } else if (ev.key === 'Escape' && selected) {
         setSelected(null)
+        setHint('')
       } else if (ev.key === ' ') {
         // Пробел на кнопке — это нажатие кнопки, не пауза.
         if ((ev.target as HTMLElement)?.tagName === 'BUTTON') return
@@ -459,7 +465,7 @@ export function LinesScreen({ engine, act, onExit }: Props) {
           ref={canvas}
           className="snake-canvas"
           role="img"
-          aria-label={`Грядка 9 на 9. Очки: ${game.score}. Свободных клеток: ${free}.${sel !== null && selected ? ` Выбран ${FRUITS[sel].icon}, ${cellName(selected)}.` : ''}${showCursor ? ` Рамка: ${cellName(cursor)}${selected ? (reachable ? ', туда можно' : '') : ''}.` : ''}`}
+          aria-label={`Грядка 9 на 9. Очки: ${game.score}. Свободных клеток: ${free}.${sel !== null && selected ? ` Выбран ${FRUITS[sel].icon}, ${cellName(selected)}.` : ''}${showCursor ? ` Рамка: ${cellName(cursor)}, ${game.grid[cursor[0]][cursor[1]] === null ? 'пусто' : FRUITS[game.grid[cursor[0]][cursor[1]] as FruitId].icon}${selected ? (reachable ? ', туда можно' : '') : ''}.` : ''}`}
           onPointerDown={onPointerDown}
         />
         {phase === 'ready' && (
