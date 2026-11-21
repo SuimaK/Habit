@@ -3,15 +3,29 @@ import { loadState, type GameState } from './core'
 const KEY = 'habit-game/state/v1'
 
 /** Хранение на устройстве. Состояние небольшое, поэтому хватает localStorage. */
-export function readState(): GameState | null {
+function backup(raw: string) {
   try {
-    const raw = localStorage.getItem(KEY)
+    if (raw.length > 20) localStorage.setItem(`${KEY}/broken-${Date.now()}`, raw)
+  } catch {
+    /* ничего */
+  }
+}
+
+export function readState(): GameState | null {
+  let raw: string | null = null
+  try {
+    raw = localStorage.getItem(KEY)
     if (!raw) return null
     const parsed: unknown = JSON.parse(raw)
     // Без списка привычек сохранение считаем пустым или повреждённым — начинаем заново.
-    if (!parsed || typeof parsed !== 'object' || !Array.isArray((parsed as { habits?: unknown }).habits)) return null
+    if (!parsed || typeof parsed !== 'object' || !Array.isArray((parsed as { habits?: unknown }).habits)) {
+      // Не выбрасываем молча: откладываем копию повреждённого сохранения.
+      backup(raw)
+      return null
+    }
     return loadState(parsed)
   } catch {
+    if (raw) backup(raw)
     return null
   }
 }
