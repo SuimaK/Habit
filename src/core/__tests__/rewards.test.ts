@@ -41,6 +41,8 @@ describe('личные награды', () => {
     expect(e.state.rewards).toEqual([{ id: 'r', name: 'Кино', price: 120, archived: true }])
     expect(err(e.redeemReward('r', 'x2', at(16)))).toBe('notFound')
     expect(err(e.updateReward({ id: 'zz', name: 'a', price: 1 }))).toBe('notFound')
+    must(e.cancelRedemption('x1', at(16)))
+    expect(e.state.rewards).toEqual([])
   })
 
   it('loadState чистит награды и историю', () => {

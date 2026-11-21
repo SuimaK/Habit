@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { dayOf, needs, type GameEngine, type Habit } from './core'
+import { dayOf, needs, type GameEngine, type Habit, type Profile } from './core'
 import { TabBar, type Tab } from './components/TabBar'
 import { LIBRARY } from './library'
 import { HabitsManager } from './screens/HabitsManager'
@@ -40,6 +40,7 @@ export default function App() {
   const [tab, setTab] = useState<Tab>('today')
   const [managing, setManaging] = useState(false)
   const [settings, setSettings] = useState(false)
+  const [settingsDraft, setSettingsDraft] = useState<Profile | null>(null)
   const [timer, setTimer] = useState<TimerOpen | null>(() => restoreTimer(engine))
   const [reward, setReward] = useState<(SessionResult & { day: string }) | null>(null)
   const s = engine.state
@@ -74,6 +75,13 @@ export default function App() {
     setReward(result)
   }
 
+  /** После настроек — фокус на заголовок «Дом». */
+  const refocusHome = useRef(false)
+  useEffect(() => {
+    if (!refocusHome.current || settings) return
+    refocusHome.current = false
+    document.querySelector<HTMLElement>('.home h1')?.focus()
+  })
   /** После таймера или награды — фокус обратно на список «Сегодня» (для VoiceOver). */
   const refocus = useRef(false)
   function focusToday() {
@@ -169,7 +177,13 @@ export default function App() {
               })
             }
             onHabits={() => setManaging(true)}
-            onClose={() => setSettings(false)}
+            draft={settingsDraft}
+            onDraft={setSettingsDraft}
+            onClose={() => {
+              setSettings(false)
+              setSettingsDraft(null)
+              refocusHome.current = true
+            }}
           />
         </main>
       </div>

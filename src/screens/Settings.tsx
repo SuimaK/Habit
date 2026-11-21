@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { Profile } from '../core'
 import { Room } from '../components/Room'
 import { HAIRS, SHIRTS, SKINS } from '../labels'
@@ -9,12 +9,26 @@ interface Props {
   onSave: (p: Profile) => void
   onHabits: () => void
   onClose: () => void
+  /** Несохранённые правки — хранятся снаружи, чтобы пережить переход к привычкам. */
+  draft: Profile | null
+  onDraft: (p: Profile) => void
 }
 
 /** Настройки: имя и внешний вид персонажа, переход к привычкам. */
-export function Settings({ profile, onSave, onHabits, onClose }: Props) {
-  const [name, setName] = useState(profile.name)
-  const [look, setLook] = useState({ skin: profile.skin, hair: profile.hair, shirt: profile.shirt })
+export function Settings({ profile, onSave, onHabits, onClose, draft, onDraft }: Props) {
+  const start = draft ?? profile
+  const [name, setNameState] = useState(start.name)
+  const [look, setLookState] = useState({ skin: start.skin, hair: start.hair, shirt: start.shirt })
+  const head = useRef<HTMLHeadingElement>(null)
+  useEffect(() => head.current?.focus(), [])
+  const setName = (v: string) => {
+    setNameState(v)
+    onDraft({ ...profile, ...look, name: v })
+  }
+  const setLook = (l: typeof look) => {
+    setLookState(l)
+    onDraft({ ...profile, ...l, name })
+  }
   const [error, setError] = useState(false)
   const changed = name.trim() !== profile.name || look.skin !== profile.skin || look.hair !== profile.hair || look.shirt !== profile.shirt
 
@@ -30,7 +44,9 @@ export function Settings({ profile, onSave, onHabits, onClose }: Props) {
         <button type="button" className="btn ghost small" onClick={onClose}>
           {changed ? 'Отмена' : 'Назад'}
         </button>
-        <h2>Настройки</h2>
+        <h2 ref={head} tabIndex={-1}>
+          Настройки
+        </h2>
         <button type="button" className="btn ghost small" onClick={save} disabled={!changed}>
           Сохранить
         </button>

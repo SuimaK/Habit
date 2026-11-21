@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   LIFE_PACKS,
   REWARD_MAX_PRICE,
@@ -23,6 +23,9 @@ interface Props {
   onSettings: () => void
 }
 
+/** Повторный тап быстрее этого не считается новой покупкой. */
+const REPEAT_GUARD_MS = 800
+
 const REWARD_ERRORS: Record<RewardError, string> = {
   emptyName: 'Напиши, что это за награда',
   badPrice: `Цена — целое число от 1 до ${REWARD_MAX_PRICE.toLocaleString('ru-RU')}`,
@@ -40,6 +43,11 @@ export function Home({ engine, now, act, onSettings }: Props) {
   const level = engine.level
   const [notice, setNotice] = useState<{ text: string; undo?: string } | null>(null)
   const [editing, setEditing] = useState<PersonalReward | null>(null)
+  const lastBuy = useRef(0)
+  const noticeRef = useRef<HTMLDivElement>(null)
+  const rewardsHead = useRef<HTMLHeadingElement>(null)
+  /** Куда вернуть фокус после закрытия формы. */
+  const refocus = useRef(false)
   const rewards = s.rewards.filter((r) => !r.archived)
   const history = [...s.redemptions].reverse().slice(0, 10)
   const freeShield = freeShieldAvailable(s.shields, today)
@@ -50,32 +58,61 @@ export function Home({ engine, now, act, onSettings }: Props) {
     return () => clearTimeout(t)
   }, [notice])
 
+  useEffect(() => {
+    if (!editing && refocus.current) {
+      refocus.current = false
+      rewardsHead.current?.focus()
+    }
+  }, [editing])
+
+  /** Защита от двойного тапа по покупке. */
+  function once(): boolean {
+    const t = Date.now()
+    if (t - lastBuy.current < REPEAT_GUARD_MS) return false
+    lastBuy.current = t
+    return true
+  }
+
+  /** Показать сообщение; с «Отменить» — перевести на него фокус, чтобы кнопка не потерялась. */
+  function show(n: { text: string; undo?: string }) {
+    setNotice(n)
+    if (n.undo) setTimeout(() => noticeRef.current?.querySelector('button')?.focus(), 0)
+  }
+
+  function closeForm() {
+    refocus.current = true
+    setEditing(null)
+  }
+
   function buyLives(pack: LifePack) {
+    if (!once()) return
     const r = act((e) => e.buyLives(pack))
     const n = LIFE_PACKS[pack].lives
-    setNotice({ text: r.ok ? `+${n} ${plural(n, 'жизнь', 'жизни', 'жизней')} для игр` : REWARD_ERRORS.notEnoughCoins })
+    show({ text: r.ok ? `+${n} ${plural(n, 'жизнь', 'жизни', 'жизней')} для игр` : REWARD_ERRORS.notEnoughCoins })
   }
 
   function buyShield() {
+    if (!once()) return
     const r = act((e) => e.buyShield())
-    setNotice({ text: r.ok ? 'Щит серии в запасе — он сработает сам, если пропустишь день' : REWARD_ERRORS.notEnoughCoins })
+    show({ text: r.ok ? 'Щит серии в запасе — он сработает сам, если пропустишь день' : REWARD_ERRORS.notEnoughCoins })
   }
 
   function redeem(r: PersonalReward) {
+    if (!once()) return
     const res = act((e, at) => e.redeemReward(r.id, newId(), at))
-    if (!res.ok) return setNotice({ text: REWARD_ERRORS[res.error] })
-    setNotice({ text: `Награда твоя: «${r.name}». Наслаждайся!`, undo: res.value.id })
+    if (!res.ok) return show({ text: REWARD_ERRORS[res.error] })
+    show({ text: `Награда твоя: «${r.name}». Наслаждайся!`, undo: res.value.id })
   }
 
   function cancel(id: string) {
     const res = act((e, at) => e.cancelRedemption(id, at))
-    setNotice({ text: res.ok ? 'Отменено, монеты вернулись' : REWARD_ERRORS[res.error] })
+    show({ text: res.ok ? 'Отменено, монеты вернулись' : REWARD_ERRORS[res.error] })
   }
 
   return (
     <div className="screen home">
       <header className="screen-head home-head">
-        <h1>Дом</h1>
+        <h1 tabIndex={-1}>Дом</h1>
         <button type="button" className="btn ghost small" onClick={onSettings}>
           Настройки
         </button>
@@ -88,32 +125,34 @@ export function Home({ engine, now, act, onSettings }: Props) {
             {s.profile ? `${s.profile.name} · ` : ''}Ур. {level.level} · {titleFor(level.level)}
           </div>
           <div className="stats">
-            <span aria-label={`Монеты: ${s.coins}`}>
+            <span>
               <span aria-hidden>🪙 </span>
-              {s.coins}
+              <span className="sr-only">Монеты: </span>
+              {s.coins.toLocaleString('ru-RU')}
             </span>
-            <span aria-label={`Жизни для игр: ${s.lives.count}`}>
+            <span>
               <span aria-hidden>♥ </span>
+              <span className="sr-only">Жизни для игр: </span>
               {s.lives.count}
             </span>
-            <span aria-label={`Щиты серии: ${s.shields.purchased + (freeShield ? 1 : 0)}`}>
+            <span>
               <span aria-hidden>🛡 </span>
+              <span className="sr-only">Щиты серии: </span>
               {s.shields.purchased + (freeShield ? 1 : 0)}
             </span>
           </div>
         </div>
       </section>
 
-      {notice && (
-        <div className="notice home-notice" role="status">
-          <span>{notice.text}</span>
-          {notice.undo && (
-            <button type="button" className="btn ghost small" onClick={() => cancel(notice.undo!)}>
-              Отменить
-            </button>
-          )}
-        </div>
-      )}
+      {/* Сообщение всегда в DOM (живой регион) и закреплено сверху, чтобы не сдвигать список. */}
+      <div ref={noticeRef} className={`home-notice ${notice ? 'on' : ''}`}>
+        <span role="status">{notice?.text ?? ''}</span>
+        {notice?.undo && (
+          <button type="button" className="btn ghost small" onClick={() => cancel(notice.undo!)}>
+            Отменить
+          </button>
+        )}
+      </div>
 
       <section className="card list-card shop" aria-labelledby="shop-h">
         <h3 id="shop-h">Магазин</h3>
@@ -132,7 +171,9 @@ export function Home({ engine, now, act, onSettings }: Props) {
       </section>
 
       <section className="card list-card" aria-labelledby="rewards-h">
-        <h3 id="rewards-h">Мои награды</h3>
+        <h3 id="rewards-h" ref={rewardsHead} tabIndex={-1}>
+          Мои награды
+        </h3>
         {rewards.length === 0 && !editing && (
           <p className="empty">Придумай, чем порадовать себя за монеты: «Сериал вечером» — 100, «Новые кроссовки» — 2 000.</p>
         )}
@@ -145,9 +186,9 @@ export function Home({ engine, now, act, onSettings }: Props) {
                   onSave={(next) => act((e) => e.updateReward(next))}
                   onDelete={() => {
                     act((e) => e.removeReward(r.id))
-                    setEditing(null)
+                    closeForm()
                   }}
-                  onClose={() => setEditing(null)}
+                  onClose={closeForm}
                 />
               </li>
             ) : (
@@ -161,11 +202,19 @@ export function Home({ engine, now, act, onSettings }: Props) {
                   </span>
                 </button>
                 {s.coins >= r.price ? (
-                  <button type="button" className="btn primary small" onClick={() => redeem(r)} aria-label={`Взять «${r.name}» за ${r.price}`}>
+                  <button
+                    type="button"
+                    className="btn primary small"
+                    onClick={() => redeem(r)}
+                    aria-label={`Взять «${r.name}» за ${r.price.toLocaleString('ru-RU')} ${coinsWord(r.price)}`}
+                  >
                     Взять
                   </button>
                 ) : (
-                  <span className="quest-wait">ещё {(r.price - s.coins).toLocaleString('ru-RU')}</span>
+                  <span className="quest-wait">
+                    <span className="sr-only">До этой награды </span>ещё {(r.price - s.coins).toLocaleString('ru-RU')}
+                    <span className="sr-only"> {coinsWord(r.price - s.coins)}</span>
+                  </span>
                 )}
               </li>
             ),
@@ -175,7 +224,7 @@ export function Home({ engine, now, act, onSettings }: Props) {
               <RewardForm
                 initial={editing}
                 onSave={(next) => act((e) => e.addReward(next))}
-                onClose={() => setEditing(null)}
+                onClose={closeForm}
               />
             </li>
           )}
@@ -230,11 +279,14 @@ function ShopRow({ title, hint, price, coins, onBuy }: { title: string; hint?: s
         </small>
       </span>
       {can ? (
-        <button type="button" className="btn primary small" onClick={onBuy} aria-label={`Купить: ${title} за ${price}`}>
+        <button type="button" className="btn primary small" onClick={onBuy} aria-label={`Купить: ${title} за ${price} ${coinsWord(price)}`}>
           Купить
         </button>
       ) : (
-        <span className="quest-wait">ещё {price - coins}</span>
+        <span className="quest-wait">
+          <span className="sr-only">Не хватает </span>ещё {price - coins}
+          <span className="sr-only"> {coinsWord(price - coins)}</span>
+        </span>
       )}
     </li>
   )
@@ -253,14 +305,26 @@ function RewardForm({
 }) {
   const [name, setName] = useState(initial.name)
   const [price, setPrice] = useState(String(initial.price))
-  const [error, setError] = useState<string | null>(null)
+  const [error, setError] = useState<{ field: 'name' | 'price'; text: string } | null>(null)
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const nameRef = useRef<HTMLInputElement>(null)
+  const priceRef = useRef<HTMLInputElement>(null)
+  const keepRef = useRef<HTMLButtonElement>(null)
+  useEffect(() => {
+    if (confirmDelete) keepRef.current?.focus()
+  }, [confirmDelete])
 
   function save(ev: React.FormEvent) {
     ev.preventDefault()
-    const p = Number(price.replace(/\s/g, ''))
-    const r = onSave({ ...initial, name, price: price.trim() === '' ? NaN : p })
-    if (!r.ok) return setError(REWARD_ERRORS[r.error])
+    // Только цифры (пробелы-разделители разрешены): «1e3» или «0x10» — не цена.
+    const digits = price.replace(/\s/g, '')
+    const r = onSave({ ...initial, name, price: /^\d+$/.test(digits) ? Number(digits) : NaN })
+    if (!r.ok) {
+      const field = r.error === 'emptyName' ? 'name' : 'price'
+      setError({ field, text: REWARD_ERRORS[r.error] })
+      ;(field === 'name' ? nameRef : priceRef).current?.focus()
+      return
+    }
     onClose()
   }
 
@@ -268,20 +332,36 @@ function RewardForm({
     <form className="reward-form" onSubmit={save} noValidate>
       <label className="field">
         <span>Награда</span>
-        <input value={name} maxLength={REWARD_NAME_MAX} onChange={(e) => setName(e.target.value)} placeholder="Например, сериал вечером" autoFocus />
+        <input
+          ref={nameRef}
+          value={name}
+          maxLength={REWARD_NAME_MAX}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="Например, сериал вечером"
+          autoFocus
+          aria-invalid={error?.field === 'name'}
+          aria-describedby={error?.field === 'name' ? `${initial.id}-err` : undefined}
+        />
       </label>
       <label className="field">
         <span>Цена в монетах</span>
-        <input value={price} inputMode="numeric" onChange={(e) => setPrice(e.target.value)} />
+        <input
+          ref={priceRef}
+          value={price}
+          inputMode="numeric"
+          onChange={(e) => setPrice(e.target.value)}
+          aria-invalid={error?.field === 'price'}
+          aria-describedby={error?.field === 'price' ? `${initial.id}-err` : undefined}
+        />
       </label>
       {error && (
-        <p className="form-error" role="alert">
-          {error}
+        <p className="form-error" role="alert" id={`${initial.id}-err`}>
+          {error.text}
         </p>
       )}
       {confirmDelete ? (
         <div className="row-btns">
-          <button type="button" className="btn ghost" onClick={() => setConfirmDelete(false)}>
+          <button type="button" className="btn ghost" onClick={() => setConfirmDelete(false)} ref={keepRef}>
             Оставить
           </button>
           <button type="button" className="btn danger" onClick={onDelete}>

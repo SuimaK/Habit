@@ -147,11 +147,15 @@ export function loadState(raw: unknown): GameState {
         name: x.name.slice(0, REWARD_NAME_MAX),
         price: Math.min(REWARD_MAX_PRICE, Math.max(1, Math.round(num(x.price, 1)))),
         ...(x.archived === true ? { archived: true } : {}),
-      })),
-    redemptions: arr<Redemption>(r.redemptions, []).filter(
-      (x) => x && typeof x === 'object' && typeof x.id === 'string' && typeof x.rewardId === 'string' &&
-        typeof x.name === 'string' && typeof x.day === 'string' && typeof x.price === 'number' && Number.isFinite(x.price) && x.price >= 0,
-    ),
+      }))
+      .filter((x, i, all) => all.findIndex((y) => y.id === x.id) === i),
+    redemptions: arr<Redemption>(r.redemptions, [])
+      .filter(
+        (x) => x && typeof x === 'object' && typeof x.id === 'string' && typeof x.rewardId === 'string' &&
+          typeof x.name === 'string' && typeof x.day === 'string' && typeof x.price === 'number' && Number.isFinite(x.price) && x.price >= 0,
+      )
+      .filter((x, i, all) => all.findIndex((y) => y.id === x.id) === i)
+      .map((x) => ({ ...x, price: Math.round(x.price) })),
     profile:
       r.profile && typeof r.profile === 'object' && typeof (r.profile as Profile).name === 'string'
         ? (r.profile as Profile)
@@ -660,6 +664,9 @@ export class GameEngine {
     if (entry.day !== dayOf(now)) return fail('tooLate')
     this.state.coins += entry.price
     this.state.redemptions.splice(i, 1)
+    // Удалённая награда, у которой больше нет истории, больше не нужна.
+    if (!this.state.redemptions.some((x) => x.rewardId === entry.rewardId))
+      this.state.rewards = this.state.rewards.filter((x) => !(x.id === entry.rewardId && x.archived))
     return ok(undefined)
   }
 

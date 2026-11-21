@@ -418,7 +418,6 @@ main {
 
 /* дом, магазин, награды, настройки */
 .home-head { display: flex; align-items: center; justify-content: space-between; }
-.home-notice { display: flex; align-items: center; gap: 8px; justify-content: space-between; }
 .home-notice span { overflow-wrap: anywhere; }
 .reward-row, .history-row { display: flex; align-items: center; gap: 10px; padding: 4px 6px 4px 0; min-height: 56px; }
 .shop .reward-row, .history-row { padding-left: 10px; }
@@ -431,3 +430,13 @@ main {
 .settings-card { padding: 16px; display: flex; flex-direction: column; gap: 14px; }
 .look-preview { max-width: 240px; margin: 0 auto; width: 100%; }
 .sheet-head .btn:disabled { opacity: 0.4; }
+.hud-title { overflow-wrap: anywhere; }
+.home-notice {
+  position: fixed; left: 16px; right: 16px; top: calc(env(safe-area-inset-top) + 10px); z-index: 10;
+  max-width: 488px; margin: 0 auto; padding: 10px 10px 10px 16px; border-radius: 16px;
+  display: flex; align-items: center; gap: 8px; justify-content: space-between;
+  background: color-mix(in srgb, var(--good) 22%, var(--card)); box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
+  transform: translateY(-160%); opacity: 0; pointer-events: none; transition: transform 0.25s, opacity 0.25s;
+}
+.home-notice.on { transform: none; opacity: 1; pointer-events: auto; }
+@media (prefers-reduced-motion: reduce) { .home-notice { transition: none; } }

@@ -36,7 +36,7 @@ interface Float {
 }
 
 const ERRORS: Partial<Record<CompletionError, string>> = {
-  coinsAlreadySpent: 'Монеты за эту отметку уже потрачены — снять её нельзя',
+  coinsAlreadySpent: 'Монеты за эту отметку уже потрачены. Если награда взята сегодня, её можно отменить в «Доме»',
   weeklyTargetReached: 'Норма на эту неделю уже выполнена',
   notScheduledToday: 'Эта привычка сегодня не запланирована',
   usedInQuest: 'Эта отметка уже засчитана в забранный квест — снять её нельзя',
