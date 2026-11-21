@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import {
+  DAILY_QUEST_REWARD,
   DIFFICULTY_REWARD,
+  dailyProgress,
   dayOf,
   daysBetween,
   needs,
@@ -12,6 +14,8 @@ import {
 } from '../core'
 import { Room, type Mood } from '../components/Room'
 import { DEFAULT_LOOK, TIME_ORDER } from '../labels'
+import { badgeTitles } from './badgeText'
+import { Progress } from './Quests'
 
 interface Props {
   engine: GameEngine
@@ -19,6 +23,7 @@ interface Props {
   act: <T>(fn: (e: GameEngine, now: Date) => T) => T
   storageOk: boolean
   onManage: () => void
+  onQuests: () => void
 }
 
 interface Float {
@@ -33,7 +38,7 @@ const ERRORS: Partial<Record<CompletionError, string>> = {
   notScheduledToday: 'Эта привычка сегодня не запланирована',
 }
 
-export function Today({ engine, now, act, storageOk, onManage }: Props) {
+export function Today({ engine, now, act, storageOk, onManage, onQuests }: Props) {
   const today = dayOf(now)
   const plan = engine.plan
   const s = engine.state
@@ -71,6 +76,9 @@ export function Today({ engine, now, act, storageOk, onManage }: Props) {
     return () => clearTimeout(t)
   }, [toast])
 
+  const questOfDay = s.quests.dailyDay === today ? s.quests.daily.find((q) => !q.claimed) : undefined
+  const questProgress = questOfDay ? dailyProgress(questOfDay, s.habits, s.completions, today) : null
+
   const mood: Mood =
     cheering || plan.result(today) === 'met' ? 'happy' : bars.some((b) => b.sad) ? 'sad' : 'calm'
 
@@ -104,7 +112,8 @@ export function Today({ engine, now, act, storageOk, onManage }: Props) {
     setCheerKey((k) => k + 1)
     setCheering(true)
     const spoken = `${h.name}: выполнено, плюс ${ev.xp} опыта и ${ev.coins} монет.`
-    if (ev.levelAfter > ev.levelBefore) say(`Новый уровень ${ev.levelAfter}! ${titleFor(ev.levelAfter)}`, spoken)
+    if (ev.newBadges.length) say(`Новый бейдж: ${badgeTitles(ev.newBadges)}!`, spoken)
+    else if (ev.levelAfter > ev.levelBefore) say(`Новый уровень ${ev.levelAfter}! ${titleFor(ev.levelAfter)}`, spoken)
     else if (ev.bonusXp || ev.bonusCoins)
       say(`Все привычки дня выполнены! Бонус +${ev.bonusXp} XP и +${ev.bonusCoins} монет`, spoken)
     else if (ev.cappedByDailyLimit) say('Достигнут дневной лимит опыта (500 XP)', spoken)
@@ -230,6 +239,38 @@ export function Today({ engine, now, act, storageOk, onManage }: Props) {
           })}
         </ul>
       </section>
+
+      {questOfDay && (
+        <section className="card quest-day">
+          <div className="quest-main">
+            <span className="muted small-caps">Квест дня</span>
+            <span className="quest-title">{questOfDay.title}</span>
+            <span className="quest-reward">
+              Награда: {DAILY_QUEST_REWARD.xp} XP + {DAILY_QUEST_REWARD.coins} монет
+            </span>
+            <Progress done={questProgress!.done} target={questProgress!.target} />
+          </div>
+          {questProgress!.complete ? (
+            <button
+              className="btn primary small"
+              onClick={() => {
+                const r = act((e, at) => e.claimDaily(questOfDay.id, at))
+                if (r.ok)
+                  say(
+                    `Квест выполнен! +${r.value.xp} XP и +${r.value.coins} монет` +
+                      (r.value.newBadges.length ? `. Новый бейдж: ${badgeTitles(r.value.newBadges)}` : ''),
+                  )
+              }}
+            >
+              Забрать
+            </button>
+          ) : (
+            <button className="btn ghost small" onClick={onQuests}>
+              Все
+            </button>
+          )}
+        </section>
+      )}
 
       {toast && (
         <div className="toast" aria-hidden>

@@ -3,13 +3,13 @@ import { TabBar, type Tab } from './components/TabBar'
 import { LIBRARY } from './library'
 import { HabitsManager } from './screens/HabitsManager'
 import { Onboarding } from './screens/Onboarding'
+import { ProgressScreen } from './screens/ProgressScreen'
+import { Quests } from './screens/Quests'
 import { Today } from './screens/Today'
 import { useGame } from './useGame'
 
-const SOON: Record<Exclude<Tab, 'today'>, string> = {
-  quests: 'Квесты появятся в блоке 4',
+const SOON: Record<'games' | 'home', string> = {
   games: 'Мини-игры появятся в блоке 7',
-  progress: 'Прогресс появится позже',
   home: 'Дом и магазин появятся в блоке 6',
 }
 
@@ -33,6 +33,7 @@ export default function App() {
                 }
                 habits.forEach((h) => e.addHabit(h, at))
                 e.state.profile = profile
+                e.startOfDay(at) // квесты под новые привычки
               })
             }
           />
@@ -47,7 +48,12 @@ export default function App() {
         <main>
           <HabitsManager
             habits={s.habits}
-            onAdd={(h) => act((e, at) => e.addHabit(h, at))}
+            onAdd={(h) =>
+              act((e, at) => {
+                e.addHabit(h, at)
+                e.startOfDay(at)
+              })
+            }
             onUpdate={(h) => act((e, at) => e.updateHabit(h, at))}
             onClose={() => setManaging(false)}
           />
@@ -60,7 +66,18 @@ export default function App() {
     <div className="app">
       <main>
         {tab === 'today' ? (
-          <Today engine={engine} now={now} act={act} storageOk={storageOk} onManage={() => setManaging(true)} />
+          <Today
+            engine={engine}
+            now={now}
+            act={act}
+            storageOk={storageOk}
+            onManage={() => setManaging(true)}
+            onQuests={() => setTab('quests')}
+          />
+        ) : tab === 'quests' ? (
+          <Quests engine={engine} now={now} act={act} />
+        ) : tab === 'progress' ? (
+          <ProgressScreen engine={engine} />
         ) : (
           <div className="screen soon">
             <p>{SOON[tab]}</p>

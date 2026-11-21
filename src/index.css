@@ -311,3 +311,33 @@ main {
 .habits-head h2 { flex: 1; }
 .edit-btn { min-height: 44px; padding: 0 8px; }
 .habits-head { align-items: center; }
+
+/* квесты и прогресс */
+.screen-head h1 { margin: 4px 0 0; font-size: 28px; }
+.tabs button { flex: 1; }
+.tabs { flex-wrap: nowrap; }
+.notice { margin: 0; padding: 10px 14px; border-radius: 14px; background: color-mix(in srgb, var(--good) 18%, var(--card)); }
+.quest { display: flex; align-items: center; gap: 12px; padding: 12px 10px; }
+.quest-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; overflow-wrap: anywhere; }
+.quest-title { font-size: 16px; font-weight: 600; }
+.quest-reward { color: var(--xp-text); font-size: 13px; font-weight: 600; margin: 0; }
+.quest-done { color: var(--good); font-weight: 700; font-size: 14px; margin: 0; }
+.qprogress { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center; font-size: 13px; }
+.quest-day { display: flex; align-items: center; gap: 12px; padding: 14px 16px; }
+.small-caps { font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; }
+.weekly { padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+.weekly-head { display: flex; justify-content: space-between; align-items: baseline; }
+.weekly-head h2 { margin: 0; font-size: 18px; }
+.weekly-line { display: grid; grid-template-columns: 96px 1fr; gap: 10px; align-items: center; font-size: 15px; }
+.summary { display: grid; grid-template-columns: repeat(3, 1fr); padding: 14px 8px; text-align: center; }
+.summary div { display: flex; flex-direction: column; gap: 2px; }
+.summary strong { font-size: 22px; }
+.summary .muted { font-size: 12px; }
+.badges { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+.badge { padding: 14px 12px; display: flex; flex-direction: column; gap: 4px; text-align: center; align-items: center; }
+.badge .muted { font-size: 12px; }
+.badge-icon { font-size: 32px; }
+.badge.locked { opacity: 0.6; }
+.badge-meta { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.badge.got.rarity-rare { box-shadow: 0 0 0 2px #7b8ce0; }
+.badge.got.rarity-legendary { box-shadow: 0 0 0 2px #e9b44c; }

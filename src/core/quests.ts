@@ -1,0 +1,215 @@
+import { addDays, weekday, weekStart, type Day } from './day'
+import type { Category, Completion, Habit } from './models'
+
+/**
+ * Квесты (ТЗ 3.4): 3 ежедневных под мои привычки и 1 недельный с сундуком.
+ * Награда забирается кнопкой «Забрать», когда условие выполнено.
+ */
+export const DAILY_QUEST_REWARD = { xp: 40, coins: 5 }
+export const WEEKLY_QUEST_REWARD = { xp: 150, coins: 20 }
+export const DAILY_QUESTS_PER_DAY = 3
+
+export type DailyGoal =
+  | { kind: 'habit'; habitId: string }
+  | { kind: 'category'; category: Category; count: number }
+  | { kind: 'total'; count: number }
+
+export interface DailyQuest {
+  id: string
+  title: string
+  goal: DailyGoal
+  claimed: boolean
+}
+
+export interface WeeklyLine {
+  category: Category
+  target: number
+}
+
+export type ChestPrize = { kind: 'coins'; amount: number } | { kind: 'shield' } | { kind: 'lives'; amount: number }
+
+export interface WeeklyQuest {
+  weekStart: Day
+  lines: WeeklyLine[]
+  claimed: boolean
+  chest: ChestPrize | null
+}
+
+export interface QuestState {
+  dailyDay: Day | null
+  /** Набор привычек, под который созданы квесты, — если он изменился, незабранные квесты пересоздаются. */
+  habitsKey?: string
+  daily: DailyQuest[]
+  weekly: WeeklyQuest | null
+  /** Сколько квестов завершено за всё время (для бейджа). */
+  claimedCount: number
+}
+
+/** Ключ набора активных привычек и их параметров. */
+export function habitsKey(habits: Habit[]): string {
+  return habits
+    .filter((h) => !h.archived)
+    .map((h) => `${h.id}:${h.category}:${JSON.stringify(h.frequency)}`)
+    .sort()
+    .join('|')
+}
+
+export const initialQuests = (): QuestState => ({ dailyDay: null, daily: [], weekly: null, claimedCount: 0 })
+
+const CATEGORY_TITLE: Record<Category, string> = { nutrition: 'Питание', workout: 'Тренировки', meditation: 'Медитация' }
+
+/** Детерминированный генератор случайных чисел от строки: квесты дня не меняются при перезапуске. */
+export function seededRandom(seed: string): () => number {
+  let h = 1779033703 ^ seed.length
+  for (let i = 0; i < seed.length; i++) {
+    h = Math.imul(h ^ seed.charCodeAt(i), 3432918353)
+    h = (h << 13) | (h >>> 19)
+  }
+  let a = h >>> 0
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0
+    let t = a
+    t = Math.imul(t ^ (t >>> 15), t | 1)
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61)
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+  }
+}
+
+function shuffle<T>(items: T[], rnd: () => number): T[] {
+  const a = [...items]
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(rnd() * (i + 1))
+    ;[a[i], a[j]] = [a[j], a[i]]
+  }
+  return a
+}
+
+const pluralHabits = (n: number) => (n === 1 ? 'привычку' : n < 5 ? 'привычки' : 'привычек')
+
+/** Привычки, которые на этот день стоят в расписании (активные). */
+function scheduledOn(habits: Habit[], day: Day): Habit[] {
+  const wd = weekday(day)
+  return habits.filter(
+    (h) =>
+      !h.archived &&
+      (h.frequency.kind === 'daily' || (h.frequency.kind === 'weekdays' && h.frequency.days.includes(wd))),
+  )
+}
+
+/** Три ежедневных квеста под привычки этого дня. */
+export function generateDaily(habits: Habit[], day: Day): DailyQuest[] {
+  const today = scheduledOn(habits, day)
+  const rnd = seededRandom(`daily:${day}`)
+  const candidates: Omit<DailyQuest, 'id' | 'claimed'>[] = []
+
+  for (const cat of ['nutrition', 'workout', 'meditation'] as const) {
+    const n = today.filter((h) => h.category === cat).length
+    if (n >= 2) candidates.push({ title: `${CATEGORY_TITLE[cat]}: все ${n} ${pluralHabits(n)} за день`, goal: { kind: 'category', category: cat, count: n } })
+  }
+  if (today.length >= 3) {
+    const n = Math.ceil(today.length * 0.6)
+    candidates.push({ title: `Выполнить ${n} ${pluralHabits(n)} за день`, goal: { kind: 'total', count: n } })
+  }
+  // Отдельные привычки: сначала посложнее.
+  const weight = { hard: 3, medium: 2, easy: 1 }
+  for (const h of shuffle(today, rnd).sort((a, b) => weight[b.difficulty] - weight[a.difficulty])) {
+    candidates.push({ title: `«${h.name}»`, goal: { kind: 'habit', habitId: h.id } })
+  }
+
+  // Берём разнотипные: не больше одного «всего за день» и смешиваем.
+  const picked = shuffle(candidates.filter((c) => c.goal.kind !== 'habit'), rnd).slice(0, 2)
+  for (const c of candidates) {
+    if (picked.length >= DAILY_QUESTS_PER_DAY) break
+    if (c.goal.kind === 'habit') picked.push(c)
+  }
+  return picked.slice(0, DAILY_QUESTS_PER_DAY).map((c, i) => ({ ...c, id: `${day}-${i}`, claimed: false }))
+}
+
+export interface QuestProgress {
+  done: number
+  target: number
+  complete: boolean
+}
+
+const progress = (done: number, target: number): QuestProgress => ({
+  done: Math.min(done, target),
+  target,
+  complete: done >= target,
+})
+
+export function dailyProgress(q: DailyQuest, habits: Habit[], completions: Completion[], day: Day): QuestProgress {
+  const doneToday = completions.filter((c) => c.day === day)
+  const byId = new Map(habits.map((h) => [h.id, h]))
+  switch (q.goal.kind) {
+    case 'habit': {
+      const id = q.goal.habitId
+      return progress(doneToday.some((c) => c.habitId === id) ? 1 : 0, 1)
+    }
+    case 'category': {
+      const cat = q.goal.category
+      return progress(doneToday.filter((c) => byId.get(c.habitId)?.category === cat).length, q.goal.count)
+    }
+    case 'total':
+      return progress(doneToday.length, q.goal.count)
+  }
+}
+
+/** Сколько раз в неделю привычка стоит в плане. */
+function perWeek(h: Habit): number {
+  switch (h.frequency.kind) {
+    case 'daily':
+      return 7
+    case 'weekdays':
+      return h.frequency.days.length
+    case 'timesPerWeek':
+      return h.frequency.times
+  }
+}
+
+/** Недельный квест: по направлениям, ~70% недельного плана. */
+export function generateWeekly(habits: Habit[], day: Day): WeeklyQuest {
+  const active = habits.filter((h) => !h.archived)
+  const lines: WeeklyLine[] = []
+  for (const cat of ['workout', 'meditation', 'nutrition'] as const) {
+    const planned = active.filter((h) => h.category === cat).reduce((s, h) => s + perWeek(h), 0)
+    if (planned > 0) lines.push({ category: cat, target: Math.min(14, Math.max(1, Math.round(planned * 0.7))) })
+  }
+  return { weekStart: weekStart(day), lines, claimed: false, chest: null }
+}
+
+export function weeklyProgress(
+  q: WeeklyQuest,
+  habits: Habit[],
+  completions: Completion[],
+): { line: WeeklyLine; progress: QuestProgress }[] {
+  const end = addDays(q.weekStart, 6)
+  const byId = new Map(habits.map((h) => [h.id, h]))
+  const inWeek = completions.filter((c) => c.day >= q.weekStart && c.day <= end)
+  return q.lines.map((line) => ({
+    line,
+    progress: progress(inWeek.filter((c) => byId.get(c.habitId)?.category === line.category).length, line.target),
+  }))
+}
+
+export function weeklyComplete(q: WeeklyQuest, habits: Habit[], completions: Completion[]): boolean {
+  return q.lines.length > 0 && weeklyProgress(q, habits, completions).every((p) => p.progress.complete)
+}
+
+/** Случайная награда сундука: монеты, щит серии или жизни для игр. */
+export function rollChest(seed: string): ChestPrize {
+  const r = seededRandom(`chest:${seed}`)()
+  if (r < 0.4) return { kind: 'coins', amount: 10 + Math.floor(seededRandom(`coins:${seed}`)() * 21) }
+  if (r < 0.7) return { kind: 'shield' }
+  return { kind: 'lives', amount: 2 }
+}
+
+export function chestLabel(p: ChestPrize): string {
+  switch (p.kind) {
+    case 'coins':
+      return `${p.amount} монет`
+    case 'shield':
+      return 'Щит серии'
+    case 'lives':
+      return `${p.amount} жизни для игр`
+  }
+}

@@ -1,8 +1,22 @@
-import { addDays, dayOf, type Day } from './day'
+import { addDays, dayOf, weekStart, type Day } from './day'
 import { levelProgress, type LevelProgress } from './leveling'
 import { initialLives, LIFE_PACKS, refreshLives, type LifePack, type LivesState } from './lives'
 import { DIFFICULTY_REWARD, type Completion, type Habit, type Profile } from './models'
 import { Plan, type DayResult } from './plan'
+import { BADGES, type BadgeContext, type BadgesState } from './badges'
+import {
+  DAILY_QUEST_REWARD,
+  WEEKLY_QUEST_REWARD,
+  dailyProgress,
+  generateDaily,
+  generateWeekly,
+  habitsKey,
+  initialQuests,
+  rollChest,
+  weeklyComplete,
+  type ChestPrize,
+  type QuestState,
+} from './quests'
 import { initialShields, SHIELD_PRICE, consumeShield, type ShieldsState } from './shields'
 import { currentOverallStreak, habitStreak, overallStreak, streakMultiplier } from './streaks'
 
@@ -36,6 +50,9 @@ export interface GameState {
   bestStreak: number
   /** Персонаж. null — онбординг ещё не пройден. */
   profile: Profile | null
+  quests: QuestState
+  /** Полученные бейджи: id → день получения. */
+  badges: BadgesState
 }
 
 export const initialState = (): GameState => ({
@@ -55,6 +72,8 @@ export const initialState = (): GameState => ({
   bestPastStreak: 0,
   bestStreak: 0,
   profile: null,
+  quests: initialQuests(),
+  badges: {},
 })
 
 /** Загрузить сохранённое состояние: недостающие поля (из старых версий) берутся по умолчанию. */
@@ -87,6 +106,17 @@ export function loadState(raw: unknown): GameState {
     // В старых сохранениях был только bestStreak.
     bestPastStreak: num(r.bestPastStreak, num(r.bestStreak, 0)),
     bestStreak: num(r.bestStreak, 0),
+    quests: (() => {
+      const q = obj<Partial<QuestState>>(r.quests, {})
+      return {
+        dailyDay: typeof q.dailyDay === 'string' ? q.dailyDay : null,
+        habitsKey: typeof q.habitsKey === 'string' ? q.habitsKey : undefined,
+        daily: arr(q.daily, []),
+        weekly: q.weekly && typeof q.weekly === 'object' && Array.isArray(q.weekly.lines) ? q.weekly : null,
+        claimedCount: num(q.claimedCount, 0),
+      }
+    })(),
+    badges: obj(r.badges, {}),
     profile:
       r.profile && typeof r.profile === 'object' && typeof (r.profile as Profile).name === 'string'
         ? (r.profile as Profile)
@@ -121,6 +151,7 @@ export type CompletionError =
   | 'coinsAlreadySpent'
 
 export type PurchaseError = 'notEnoughCoins'
+export type ClaimError = 'notFound' | 'alreadyClaimed' | 'notReady'
 
 export type Result<T, E> = { ok: true; value: T } | { ok: false; error: E }
 const ok = <T>(value: T): Result<T, never> => ({ ok: true, value })
@@ -137,6 +168,10 @@ export interface RewardEvent {
   cappedByDailyLimit: boolean
   levelBefore: number
   levelAfter: number
+  /** Бейджи, полученные этим действием. */
+  newBadges: string[]
+  /** Приз из сундука (недельный квест). */
+  chest?: ChestPrize
 }
 
 /**
@@ -253,7 +288,85 @@ export class GameEngine {
       this.state.lastProcessedDay = day
     }
     this.updateBestStreak(now)
+    this.ensureQuests(today)
+    this.checkBadges(now)
     return saved
+  }
+
+  // ---------- Квесты ----------
+
+  /** Квесты дня и недели: создаются при смене дня/недели или если их ещё нет (новые привычки). */
+  ensureQuests(today: Day) {
+    const q = this.state.quests
+    const key = habitsKey(this.state.habits)
+    const changed = q.habitsKey !== key
+    // Пока сегодня ничего не забрано, квесты подстраиваются под изменённые привычки.
+    if (q.dailyDay !== today || (changed && !q.daily.some((x) => x.claimed))) {
+      q.daily = generateDaily(this.state.habits, today)
+      q.dailyDay = today
+    }
+    if (!q.weekly || q.weekly.weekStart !== weekStart(today) || (changed && !q.weekly.claimed)) {
+      q.weekly = generateWeekly(this.state.habits, today)
+    }
+    q.habitsKey = key
+  }
+
+  claimDaily(questId: string, now: Date): Result<RewardEvent, ClaimError> {
+    this.startOfDay(now)
+    const today = dayOf(now)
+    const quest = this.state.quests.daily.find((x) => x.id === questId)
+    if (!quest || this.state.quests.dailyDay !== today) return fail('notFound')
+    if (quest.claimed) return fail('alreadyClaimed')
+    if (!dailyProgress(quest, this.state.habits, this.state.completions, today).complete) return fail('notReady')
+    quest.claimed = true
+    this.state.quests.claimedCount++
+    const ev = this.award(DAILY_QUEST_REWARD.xp, DAILY_QUEST_REWARD.coins, now)
+    ev.newBadges = this.checkBadges(now)
+    return ok(ev)
+  }
+
+  claimWeekly(now: Date): Result<RewardEvent, ClaimError> {
+    this.startOfDay(now)
+    const quest = this.state.quests.weekly
+    if (!quest) return fail('notFound')
+    if (quest.claimed) return fail('alreadyClaimed')
+    if (!weeklyComplete(quest, this.state.habits, this.state.completions)) return fail('notReady')
+    quest.claimed = true
+    this.state.quests.claimedCount++
+    const ev = this.award(WEEKLY_QUEST_REWARD.xp, WEEKLY_QUEST_REWARD.coins, now)
+    const chest = rollChest(quest.weekStart)
+    quest.chest = chest
+    if (chest.kind === 'coins') this.state.coins += chest.amount
+    else if (chest.kind === 'shield') this.state.shields = { ...this.state.shields, purchased: this.state.shields.purchased + 1 }
+    else this.state.lives = { ...this.state.lives, count: this.state.lives.count + chest.amount }
+    ev.chest = chest
+    ev.newBadges = this.checkBadges(now)
+    return ok(ev)
+  }
+
+  // ---------- Бейджи ----------
+
+  /** Выдаёт заслуженные бейджи. Возвращает id новых. */
+  checkBadges(now: Date): string[] {
+    const today = dayOf(now)
+    const active = this.state.habits.filter((h) => !h.archived)
+    const ctx: BadgeContext = {
+      habits: this.state.habits,
+      completions: this.state.completions,
+      level: this.level.level,
+      bestStreak: Math.max(this.state.bestStreak, this.currentStreak(now)),
+      bestHabitStreak: Math.max(0, ...active.map((h) => this.habitStreak(h.id, now))),
+      perfectDays: Object.keys(this.state.bonusByDay).length,
+      questsClaimed: this.state.quests.claimedCount,
+    }
+    const earned: string[] = []
+    for (const b of BADGES) {
+      if (!this.state.badges[b.id] && b.earned(ctx)) {
+        this.state.badges[b.id] = today
+        earned.push(b.id)
+      }
+    }
+    return earned
   }
 
   private updateBestStreak(now: Date) {
@@ -321,7 +434,7 @@ export class GameEngine {
     const wantedXp = Math.round(reward.xp * multiplier)
     const xp = this.grantXp(wantedXp, today)
     this.state.coins += reward.coins
-    this.state.completions.push({ habitId, day: today, xp, coins: reward.coins })
+    this.state.completions.push({ habitId, day: today, xp, coins: reward.coins, at: now.getTime() })
 
     const event: RewardEvent = {
       xp,
@@ -332,6 +445,7 @@ export class GameEngine {
       cappedByDailyLimit: xp < wantedXp,
       levelBefore,
       levelAfter: levelBefore,
+      newBadges: [],
     }
 
     const bonus = this.checkDayBonus(today)
@@ -343,6 +457,7 @@ export class GameEngine {
 
     event.levelAfter = this.level.level
     this.updateBestStreak(now)
+    event.newBadges = this.checkBadges(now)
     return ok(event)
   }
 
@@ -390,6 +505,7 @@ export class GameEngine {
       cappedByDailyLimit: granted < xp,
       levelBefore,
       levelAfter: this.level.level,
+      newBadges: [],
     }
   }
 

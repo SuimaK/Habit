@@ -56,4 +56,6 @@ export interface Completion {
   day: Day
   xp: number
   coins: number
+  /** Момент отметки (мс) — для бейджей вроде «Ранняя пташка». */
+  at?: number
 }
