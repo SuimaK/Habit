@@ -508,3 +508,41 @@ describe('повторная проверка (0be6e3a): регрессии за
     expect(e.state.bestStreak).toBe(5)
   })
 })
+
+describe('финальная проверка (0a698b1): размораживание при переводе часов назад', () => {
+  it('часы назад: дни от сегодня снова открыты, прошлое не трогается', () => {
+    const h = habit()
+    const e = engine([h])
+    for (let day = 16; day <= 18; day++) doAll(e, [h.id], at(day))
+    e.startOfDay(at(25))
+    e.startOfDay(at(19))
+    expect(e.state.lastProcessedDay).toBe(d(18))
+    expect(Object.keys(e.state.dayResults).every((x) => x < d(19))).toBe(true)
+    expect(e.state.dayResults[d(18)]).toBe('met')
+    must(e.complete(h.id, at(19)))
+    expect(e.currentStreak(at(19))).toBe(4)
+    expect(e.state.bestStreak).toBe(4)
+  })
+
+  it('ЗАМЕЧАНИЕ: щит, потраченный на «будущий» день при часах вперёд, не возвращается', () => {
+    const h = habit()
+    const e = engine([h])
+    for (let day = 16; day <= 18; day++) doAll(e, [h.id], at(day))
+    e.startOfDay(at(20)) // часы на день вперёд: 19-е «пропущено», бесплатный щит потрачен
+    expect(e.state.shieldedDays).toEqual([d(19)])
+    e.startOfDay(at(19)) // часы вернули
+    must(e.complete(h.id, at(19)))
+    // Фиксируем текущее поведение: день 19 выполнен, но щит недели остаётся потраченным.
+    expect(e.state.shieldedDays).toEqual([d(19)])
+    expect(e.state.shields.freeUsedWeeks).toEqual([d(16)])
+    expect(e.currentStreak(at(19))).toBe(4)
+  })
+
+  it('loadState: старое сохранение без вложенных полей и bestPastStreak', () => {
+    const e = new GameEngine(loadState({ bestStreak: 7, lives: { count: 2 }, shields: { purchased: 1 } }))
+    e.startOfDay(at(16))
+    expect(e.state.bestStreak).toBe(7)
+    expect(e.state.shields.freeUsedWeeks).toEqual([])
+    expect(e.state.lives.count).toBe(2)
+  })
+})
