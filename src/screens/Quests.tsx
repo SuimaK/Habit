@@ -8,12 +8,13 @@ import {
   dailyProgress,
   dayOf,
   daysBetween,
+  directionName,
   questTitle,
   weeklyProgress,
   type GameEngine,
   type RewardEvent,
 } from '../core'
-import { CATEGORY_LABEL, plural } from '../labels'
+import { plural } from '../labels'
 import { badgeTitles } from './badgeText'
 import { CustomQuests } from './CustomQuests'
 
@@ -65,7 +66,7 @@ export function Quests({ engine, now, act }: Props) {
     lastSwap.current = t
     const r = act((e, at) => e.swapDaily(id, at))
     if (r.ok) {
-      setMessage(`Новый квест: ${questTitle(r.value, engine.state.habits)}`)
+      setMessage(`Новый квест: ${questTitle(r.value, engine.state.habits, engine.state.directions)}`)
       setFocusQuest(r.value.id)
     } else
       setMessage(
@@ -117,7 +118,7 @@ export function Quests({ engine, now, act }: Props) {
                   <li key={quest.id} className="quest">
                     <div className="quest-main">
                       <span className="quest-title" id={`quest-${quest.id}`} tabIndex={-1}>
-                        {questTitle(quest, s.habits)}
+                        {questTitle(quest, s.habits, s.directions)}
                       </span>
                       <span className="quest-reward">
                         {DAILY_QUEST_REWARD.xp} XP · {DAILY_QUEST_REWARD.coins} 🪙
@@ -129,7 +130,7 @@ export function Quests({ engine, now, act }: Props) {
                     ) : p.complete ? (
                       <button
                         className="btn primary small"
-                        aria-label={`Забрать награду: ${questTitle(quest, s.habits)}`}
+                        aria-label={`Забрать награду: ${questTitle(quest, s.habits, s.directions)}`}
                         onClick={() => report(act((e, at) => e.claimDaily(quest.id, at)))}
                       >
                         Забрать
@@ -140,7 +141,7 @@ export function Quests({ engine, now, act }: Props) {
                         <button
                           type="button"
                           className="btn ghost small quest-swap"
-                          aria-label={`Заменить квест: ${questTitle(quest, s.habits)}`}
+                          aria-label={`Заменить квест: ${questTitle(quest, s.habits, s.directions)}`}
                           onClick={() => swap(quest.id)}
                         >
                           Заменить
@@ -180,7 +181,7 @@ export function Quests({ engine, now, act }: Props) {
             <>
               {weeklyProgress(q.weekly, s.habits, s.completions).map(({ line, progress }) => (
                 <div key={line.category} className="weekly-line">
-                  <span>{CATEGORY_LABEL[line.category]}</span>
+                  <span>{directionName(s.directions, line.category)}</span>
                   <Progress done={progress.done} target={progress.target} category={line.category} />
                 </div>
               ))}

@@ -14,6 +14,10 @@
   /* для рамки и фона чекбокса «Энергия» на светлой карточке — контраст ≥ 3:1 */
   --need-nutrition-strong: #a8770f;
   --need-meditation: #7b8ce0;
+  --need-c1: #2f8f86;
+  --need-c2: #c2558f;
+  --need-c3: #7a5fc9;
+  --need-c4: #3f86b8;
   --xp: #9b6bd6;
   --xp-text: #7543b5;
   --on-accent: #ffffff;
@@ -87,6 +91,10 @@
     --accent-text: #f2a07e;
     --xp-text: #c4a6f5;
     --need-nutrition-strong: #e9b44c;
+    --need-c1: #4fbfb3;
+    --need-c2: #e07ab0;
+    --need-c3: #a28be8;
+    --need-c4: #6aaee0;
     --on-accent: #2a1408;
     --good-text: #8fd19a;
     --warn-bg: #4a2a1c;
@@ -165,6 +173,9 @@ main {
 .cat-workout { color: var(--need-workout); }
 .cat-nutrition { color: var(--need-nutrition-strong); }
 .cat-meditation { color: var(--need-meditation); }
+.cat-c1 { color: var(--need-c1); } .cat-c2 { color: var(--need-c2); } .cat-c3 { color: var(--need-c3); } .cat-c4 { color: var(--need-c4); }
+.need-c1 > div { background: var(--need-c1); } .need-c2 > div { background: var(--need-c2); } .need-c3 > div { background: var(--need-c3); } .need-c4 > div { background: var(--need-c4); }
+.ring.cat-c1, .ring.cat-c2, .ring.cat-c3, .ring.cat-c4 { stroke: currentColor; }
 .done .check { background: currentColor; }
 .done .check::after { content: '✓'; color: #fff; }
 .done .cat-nutrition::after { color: #2a2118; }
@@ -520,3 +531,18 @@ main {
 .blocks-next { display: inline-flex; align-items: center; gap: 8px; font-weight: 500; }
 .blocks-next-canvas { width: 40px; height: 40px; display: block; }
 .blocks-pad { grid-template-columns: repeat(4, 1fr); }
+
+/* Направления */
+.dir-seg button { flex-direction: row; gap: 2px; }
+.dir-icon { font-size: 22px; width: 28px; text-align: center; flex: none; }
+.dir-note { margin: 0 4px; }
+.field-note { margin: 6px 2px 0; font-size: 13px; }
+.dir-delete { margin-top: 4px; }
+.icon-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(48px, 1fr)); gap: 8px; }
+.icon-grid button { min-height: 48px; font-size: 24px; border-radius: 12px; border: 1.5px solid var(--line); background: var(--card); cursor: pointer; }
+.icon-grid .on { border-color: var(--accent-text); background: color-mix(in srgb, var(--accent) 14%, var(--card)); box-shadow: 0 0 0 1.5px var(--accent-text) inset; }
+.toggle-row { display: flex; align-items: center; gap: 12px; padding: 12px 14px; background: var(--card); border-radius: 16px; cursor: pointer; min-height: 52px; }
+.toggle-row input { width: 24px; height: 24px; accent-color: var(--accent-text); flex: none; }
+.toggle-row span { display: flex; flex-direction: column; font-size: 16px; }
+.toggle-row small { color: var(--muted); font-size: 13px; }
+.spacer { width: 72px; }

@@ -10,6 +10,7 @@ interface Props {
   profile: Profile
   onSave: (p: Profile) => void
   onHabits: () => void
+  onDirections: () => void
   onClose: () => void
   /** Несохранённые правки — хранятся снаружи, чтобы пережить переход к привычкам. */
   draft: Profile | null
@@ -23,7 +24,7 @@ interface Props {
 }
 
 /** Настройки: имя и внешний вид персонажа, переход к привычкам. */
-export function Settings({ profile, onSave, onHabits, onClose, draft, onDraft, gameLimit, onGameLimit, state, onRestore }: Props) {
+export function Settings({ profile, onSave, onHabits, onDirections, onClose, draft, onDraft, gameLimit, onGameLimit, state, onRestore }: Props) {
   const start = draft ?? profile
   const [name, setNameState] = useState(start.name)
   const [look, setLookState] = useState({ skin: start.skin, hair: start.hair, shirt: start.shirt })
@@ -96,6 +97,17 @@ export function Settings({ profile, onSave, onHabits, onClose, draft, onDraft, g
               <span className="row-text">
                 Мои привычки
                 <small>Добавить, изменить, убрать в архив</small>
+              </span>
+              <span className="chev" aria-hidden>
+                ›
+              </span>
+            </button>
+          </li>
+          <li>
+            <button type="button" className="row" onClick={onDirections}>
+              <span className="row-text">
+                Направления
+                <small>Переименовать, добавить свои — всего до 5</small>
               </span>
               <span className="chev" aria-hidden>
                 ›

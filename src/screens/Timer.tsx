@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
-import type { Habit } from '../core'
-import { CATEGORY_LABEL } from '../labels'
+import { directionName, toneOf, type DirectionsState, type Habit } from '../core'
 import { MoodPicker } from '../components/MoodPicker'
 import { chime, unlockAudio } from '../chime'
 import { MAX_MINUTES, MIN_MINUTES, defaultMinutes, fmtClock, pause, remaining, resume, writeTimer, type TimerData } from '../timerStore'
 
 interface Props {
   habit: Habit
+  directions: DirectionsState
   /** null — ещё не запущен (выбор длительности и настроения). */
   data: TimerData | null
   onChange: (t: TimerData | null) => void
@@ -40,7 +40,7 @@ function useWakeLock(active: boolean) {
 }
 
 /** Таймер тренировки или медитации (ТЗ 5.3). */
-export function Timer({ habit, data, onChange, onFinish, onExit }: Props) {
+export function Timer({ habit, directions, data, onChange, onFinish, onExit }: Props) {
   const [minutes, setMinutes] = useState(() => defaultMinutes(habit))
   const [moodBefore, setMoodBefore] = useState<number | undefined>(data?.moodBefore)
   const [nowMs, setNowMs] = useState(() => Date.now())
@@ -132,7 +132,7 @@ export function Timer({ habit, data, onChange, onFinish, onExit }: Props) {
           {data ? 'Выйти' : 'Назад'}
         </button>
         <h2 ref={head} tabIndex={-1}>
-          {CATEGORY_LABEL[habit.category]}
+          {directionName(directions, habit.category)}
         </h2>
         <span />
       </header>
@@ -163,7 +163,7 @@ export function Timer({ habit, data, onChange, onFinish, onExit }: Props) {
             <svg viewBox="0 0 200 200" aria-hidden>
               <circle className="ring-bg" cx="100" cy="100" r="88" />
               <circle
-                className={`ring cat-${habit.category}`}
+                className={`ring cat-${toneOf(directions, habit.category)}`}
                 cx="100"
                 cy="100"
                 r="88"

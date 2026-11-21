@@ -38,7 +38,9 @@ describe('резервная копия', () => {
     const bad = { ...s, lives: { count: 'много' }, habits: [...s.habits, { id: 'x' }, { id: 'y', name: 'y', category: 'food', difficulty: 'easy', frequency: { kind: 'daily' } }] }
     const r = parseBackup(JSON.stringify({ app: 'habit-game', version: 1, state: bad }))
     if (!r.ok) throw new Error(r.error)
-    expect(r.state.habits.map((h) => h.id)).toEqual(['h1'])
+    // Привычка без нужных полей отбрасывается, с неизвестным направлением — переносится в «Питание».
+    expect(r.state.habits.map((h) => h.id)).toEqual(['h1', 'y'])
+    expect(r.state.habits[1].category).toBe('nutrition')
     expect(r.state.lives.count).toBe(3)
   })
   it('CSV: заголовок, экранирование, защита от формул', () => {

@@ -1,5 +1,4 @@
-import { CATEGORY_LABEL } from './labels'
-import { GameEngine, dayOf, loadState, type GameState } from './core'
+import { GameEngine, dayOf, directionName, loadState, type GameState } from './core'
 
 /** Резервная копия в файл и выгрузка истории в CSV (ТЗ: копия вместо iCloud). */
 export const BACKUP_APP = 'habit-game'
@@ -74,16 +73,16 @@ export function makeCsv(state: GameState, now: Date): { name: string; text: stri
   const byId = new Map(state.habits.map((h) => [h.id, h]))
   const rows: (string | number | undefined)[][] = [['Дата', 'Тип', 'Привычка', 'Направление', 'XP', 'Монеты', 'Минуты', 'Настроение до', 'Настроение после']]
   const events = [
-    ...state.completions.map((c) => ({ day: c.day, row: ['Отметка', byId.get(c.habitId)?.name ?? 'удалённая привычка', cat(byId.get(c.habitId)?.category), c.xp, c.coins, undefined, undefined, undefined] })),
-    ...state.sessions.map((s) => ({ day: s.day, row: ['Таймер', byId.get(s.habitId)?.name ?? 'удалённая привычка', cat(byId.get(s.habitId)?.category), undefined, undefined, s.minutes, s.moodBefore, s.moodAfter] })),
+    ...state.completions.map((c) => ({ day: c.day, row: ['Отметка', byId.get(c.habitId)?.name ?? 'удалённая привычка', cat(state, byId.get(c.habitId)?.category), c.xp, c.coins, undefined, undefined, undefined] })),
+    ...state.sessions.map((s) => ({ day: s.day, row: ['Таймер', byId.get(s.habitId)?.name ?? 'удалённая привычка', cat(state, byId.get(s.habitId)?.category), undefined, undefined, s.minutes, s.moodBefore, s.moodAfter] })),
   ].sort((a, b) => (a.day < b.day ? -1 : a.day > b.day ? 1 : 0))
   for (const e of events) rows.push([e.day, ...e.row])
   // BOM — чтобы Excel понял UTF-8.
   return { name: `privychki-history-${dayOf(now)}.csv`, text: '﻿' + rows.map((r) => r.map(cell).join(';')).join('\r\n') + '\r\n' }
 }
 
-function cat(c: keyof typeof CATEGORY_LABEL | undefined) {
-  return c ? CATEGORY_LABEL[c] : ''
+function cat(state: GameState, c: string | undefined) {
+  return c ? directionName(state.directions, c) : ''
 }
 
 /** Отдать файл: на iPhone — через меню «Поделиться» (там «Сохранить в Файлы»), иначе — скачиванием. */

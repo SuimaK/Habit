@@ -7,6 +7,8 @@ import {
   dayOf,
   daysBetween,
   needs,
+  directionOf,
+  toneOf,
   streakMultiplier,
   titleFor,
   type CompletionError,
@@ -51,7 +53,7 @@ export function Today({ engine, now, act, storageOk, onManage, onQuests, onTimer
   const multiplier = streakMultiplier(engine.multiplierStreak(now))
   // Первую неделю окно шкал ещё не заполнено — не грустим, чтобы не было чувства вины на старте.
   const settling = s.profile ? daysBetween(s.profile.createdDay, today) < 7 : false
-  const bars = needs(s.habits, s.completions, today).map((b) => (settling ? { ...b, sad: false } : b))
+  const bars = needs(s.habits, s.completions, today, s.directions).map((b) => (settling ? { ...b, sad: false } : b))
 
   const fixed = plan.fixedHabits(today)
   const flexible = plan.habits.filter((h) => h.frequency.kind === 'timesPerWeek')
@@ -146,7 +148,7 @@ export function Today({ engine, now, act, storageOk, onManage, onQuests, onTimer
             <div className="need" key={b.category}>
               <span className="need-label">{b.label}</span>
               <div
-                className={`bar need-${b.category} ${b.sad ? 'sad' : ''}`}
+                className={`bar need-${b.tone} ${b.sad ? 'sad' : ''}`}
                 role="meter"
                 aria-label={b.label}
                 aria-valuemin={0}
@@ -215,7 +217,7 @@ export function Today({ engine, now, act, storageOk, onManage, onQuests, onTimer
             const weekTarget = h.frequency.kind === 'timesPerWeek' ? h.frequency.times : 0
             const blocked = weekly && !done && weekDone >= weekTarget
             const xp = Math.round(DIFFICULTY_REWARD[h.difficulty].xp * multiplier)
-            const timed = (h.category === 'workout' || h.category === 'meditation') && !done && !blocked
+            const timed = directionOf(s.directions, h.category).timer && !done && !blocked
             return (
               <li key={h.id} className={`habit ${done ? 'done' : ''} ${blocked ? 'blocked' : ''} ${timed ? 'timed' : ''}`}>
                 <button
@@ -224,7 +226,7 @@ export function Today({ engine, now, act, storageOk, onManage, onQuests, onTimer
                   aria-pressed={done}
                   disabled={blocked}
                 >
-                  <span className={`check cat-${h.category}`} aria-hidden />
+                  <span className={`check cat-${toneOf(s.directions, h.category)}`} aria-hidden />
                   <span className="habit-name">
                     {h.name}
                     {weekly && (

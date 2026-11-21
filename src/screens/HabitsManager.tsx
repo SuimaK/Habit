@@ -1,12 +1,13 @@
 import { useState } from 'react'
-import type { Category, Habit } from '../core'
+import { BASE_CATEGORIES, directionName, toneOf, type DirectionsState, type Habit } from '../core'
 import { newId } from '../id'
-import { CATEGORY_LABEL, DIFFICULTY_LABEL, TIME_LABEL, TIME_ORDER, frequencyLabel, targetLabel } from '../labels'
+import { DIFFICULTY_LABEL, TIME_LABEL, TIME_ORDER, frequencyLabel, targetLabel } from '../labels'
 import { fromTemplate, LIBRARY, type Template } from '../library'
 import { HabitForm } from './HabitForm'
 
 interface Props {
   habits: Habit[]
+  directions: DirectionsState
   onAdd: (h: Habit) => void
   onUpdate: (h: Habit) => void
   onClose: () => void
@@ -25,13 +26,14 @@ const blank = (): Habit => ({
 })
 
 /** Мои привычки: список, добавление из библиотеки или своей, редактирование, архив. */
-export function HabitsManager({ habits, onAdd, onUpdate, onClose }: Props) {
+export function HabitsManager({ habits, directions, onAdd, onUpdate, onClose }: Props) {
   const [view, setView] = useState<View>({ kind: 'list' })
 
   if (view.kind === 'edit') {
     return (
       <HabitForm
         habit={view.habit}
+        directions={directions}
         isNew={view.isNew}
         onCancel={() => setView({ kind: view.isNew ? 'library' : 'list' })}
         onSave={(h) => {
@@ -61,9 +63,9 @@ export function HabitsManager({ habits, onAdd, onUpdate, onClose }: Props) {
         <button type="button" className="btn primary wide" onClick={() => setView({ kind: 'edit', habit: blank(), isNew: true })}>
           + Своя привычка
         </button>
-        {(['nutrition', 'workout', 'meditation'] as Category[]).map((c) => (
+        {BASE_CATEGORIES.map((c) => (
           <section key={c} className="card list-card">
-            <h3>{CATEGORY_LABEL[c]}</h3>
+            <h3>{directionName(directions, c)}</h3>
             <ul>
               {LIBRARY.filter((t) => t.category === c).map((t: Template) => (
                 <li key={t.key}>
@@ -72,7 +74,7 @@ export function HabitsManager({ habits, onAdd, onUpdate, onClose }: Props) {
                     className="row"
                     onClick={() => setView({ kind: 'edit', habit: fromTemplate(t), isNew: true })}
                   >
-                    <span className={`dot cat-${t.category}`} aria-hidden />
+                    <span className={`dot cat-${toneOf(directions, t.category)}`} aria-hidden />
                     <span className="row-text">
                       {t.name}
                       <small>
@@ -100,11 +102,11 @@ export function HabitsManager({ habits, onAdd, onUpdate, onClose }: Props) {
   const row = (h: Habit) => (
     <li key={h.id}>
       <button type="button" className="row" onClick={() => setView({ kind: 'edit', habit: h, isNew: false })}>
-        <span className={`dot cat-${h.category}`} aria-hidden />
+        <span className={`dot cat-${toneOf(directions, h.category)}`} aria-hidden />
         <span className="row-text">
           {h.name}
           <small>
-            {frequencyLabel(h.frequency)} · {TIME_LABEL[h.timeOfDay ?? 'any']} · {DIFFICULTY_LABEL[h.difficulty]}
+            {directionName(directions, h.category)} · {frequencyLabel(h.frequency)} · {TIME_LABEL[h.timeOfDay ?? 'any']} · {DIFFICULTY_LABEL[h.difficulty]}
             {h.target ? ` · ${targetLabel(h.target)}` : ''}
           </small>
         </span>

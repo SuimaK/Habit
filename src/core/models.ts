@@ -1,7 +1,9 @@
 import type { Day } from './day'
 
-/** Направление привычки. Каждое наполняет свою шкалу-потребность персонажа. */
-export type Category = 'nutrition' | 'workout' | 'meditation' // Энергия · Сила · Дзен
+/** Стандартные направления: Энергия · Сила · Дзен. */
+export type BaseCategory = 'nutrition' | 'workout' | 'meditation'
+/** Направление привычки: стандартное или своё (id своего направления). Каждое наполняет свою шкалу. */
+export type Category = string
 
 export type Difficulty = 'easy' | 'medium' | 'hard'
 

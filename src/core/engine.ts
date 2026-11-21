@@ -5,6 +5,20 @@ import { DIFFICULTY_REWARD, type Completion, type Habit, type Profile, type Sess
 import { Plan, type DayResult } from './plan'
 import { BADGES, type BadgeContext, type BadgesState } from './badges'
 import {
+  BASE_CATEGORIES,
+  DIRECTION_ICONS,
+  DIRECTION_NAME_MAX,
+  DIRECTIONS_MAX,
+  activeDirections,
+  allDirections,
+  initialDirections,
+  isBaseCategory,
+  validateDirectionName,
+  type CustomDirection,
+  type DirectionError,
+  type DirectionsState,
+} from './directions'
+import {
   DAILY_QUEST_REWARD,
   DAILY_SWAPS_PER_DAY,
   WEEKLY_QUEST_REWARD,
@@ -81,6 +95,8 @@ export interface GameState {
   customQuests: CustomQuest[]
   /** Мини-игры: рекорды, время, лимит. */
   games: GamesState
+  /** Направления: переименования стандартных и свои. */
+  directions: DirectionsState
 }
 
 export const initialState = (): GameState => ({
@@ -107,7 +123,38 @@ export const initialState = (): GameState => ({
   redemptions: [],
   customQuests: [],
   games: initialGames(),
+  directions: initialDirections(),
 })
+
+function parseDirections(v: unknown): DirectionsState {
+  const d = initialDirections()
+  if (!v || typeof v !== 'object' || Array.isArray(v)) return d
+  const raw = v as Partial<DirectionsState>
+  const text = (x: unknown, max: number) => (typeof x === 'string' && x.trim() ? x.trim().slice(0, max) : undefined)
+  const icon = (x: unknown) => (typeof x === 'string' && (DIRECTION_ICONS as readonly string[]).includes(x) ? x : undefined)
+  if (raw.base && typeof raw.base === 'object')
+    for (const id of BASE_CATEGORIES) {
+      const b = (raw.base as Record<string, unknown>)[id] as { name?: unknown; icon?: unknown } | undefined
+      if (!b || typeof b !== 'object') continue
+      const name = text(b.name, DIRECTION_NAME_MAX)
+      const ic = icon(b.icon)
+      if (name || ic) d.base[id] = { ...(name ? { name } : {}), ...(ic ? { icon: ic } : {}) }
+    }
+  if (Array.isArray(raw.custom)) {
+    let active = BASE_CATEGORIES.length
+    for (const c of raw.custom as Partial<CustomDirection>[]) {
+      if (!c || typeof c !== 'object' || typeof c.id !== 'string' || !c.id || isBaseCategory(c.id)) continue
+      if (d.custom.some((x) => x.id === c.id)) continue
+      const name = text(c.name, DIRECTION_NAME_MAX)
+      if (!name) continue
+      // Сверх лимита направления сохраняются как удалённые, чтобы не потерять привычки.
+      const archived = c.archived === true || active >= DIRECTIONS_MAX
+      if (!archived) active++
+      d.custom.push({ id: c.id, name, icon: icon(c.icon) ?? '⭐', timer: c.timer === true, ...(archived ? { archived: true } : {}) })
+    }
+  }
+  return d
+}
 
 /** Загрузить сохранённое состояние: недостающие поля (из старых версий) берутся по умолчанию. */
 /** Привычка из сохранения пригодна к работе: все обязательные поля на месте. */
@@ -124,7 +171,8 @@ function isValidHabit(h: unknown): h is Habit {
   return (
     typeof x.id === 'string' &&
     typeof x.name === 'string' &&
-    (x.category === 'nutrition' || x.category === 'workout' || x.category === 'meditation') &&
+    typeof x.category === 'string' &&
+    x.category !== '' &&
     (x.difficulty === 'easy' || x.difficulty === 'medium' || x.difficulty === 'hard') &&
     freqOk &&
     (x.archived === undefined || typeof x.archived === 'boolean')
@@ -142,9 +190,15 @@ export function loadState(raw: unknown): GameState {
   const obj = <T extends object>(v: unknown, d: T): T =>
     v && typeof v === 'object' && !Array.isArray(v) ? { ...d, ...(v as Partial<T>) } : d
   const day = (v: unknown) => (typeof v === 'string' ? v : null)
+  const directions = parseDirections(r.directions)
+  const known = new Set(allDirections(directions).map((d) => d.id))
   return {
     version: 1,
-    habits: arr<Habit>(r.habits, []).filter(isValidHabit),
+    // Привычка с неизвестным направлением (испорченный файл) переносится в «Питание».
+    habits: arr<Habit>(r.habits, [])
+      .filter(isValidHabit)
+      .map((h) => (known.has(h.category) ? h : { ...h, category: 'nutrition' })),
+    directions,
     completions: arr<Completion>(r.completions, [])
       .filter((c) => c && typeof c === 'object' && typeof c.habitId === 'string' && isDay(c.day))
       .map((c) => ({
@@ -460,7 +514,7 @@ export class GameEngine {
     const changed = q.habitsKey !== key
     // Пока сегодня ничего не забрано, квесты подстраиваются под изменённые привычки.
     if (q.dailyDay !== today || (changed && !q.daily.some((x) => x.claimed))) {
-      q.daily = generateDaily(this.state.habits, today)
+      q.daily = generateDaily(this.state.habits, today, this.state.directions)
       if (q.dailyDay === today) this.keepSwaps(today)
       q.dailyDay = today
     } else if (changed) {
@@ -482,7 +536,7 @@ export class GameEngine {
     if (q.swapDay !== today || !q.swappedOut?.length) return
     q.daily = q.daily.map((x) => {
       if (!q.swappedOut!.includes(x.id)) return x
-      const next = swapCandidate(this.state.habits, this.state.completions, today, q.daily, q.swappedOut!, seededRandom(`swap:${today}:keep:${x.id}`))
+      const next = swapCandidate(this.state.habits, this.state.completions, today, q.daily, q.swappedOut!, seededRandom(`swap:${today}:keep:${x.id}`), this.state.directions)
       if (next && !q.swappedOut!.includes(next.id)) return next
       q.swaps = Math.max(0, (q.swaps ?? 0) - 1)
       return x
@@ -506,7 +560,7 @@ export class GameEngine {
     if (!quest || q.dailyDay !== today || quest.claimed || this.dailySwapsLeft(now) <= 0) return false
     if (dailyProgress(quest, this.state.habits, this.state.completions, today).complete) return false
     const out = q.swapDay === today ? [...(q.swappedOut ?? []), quest.id] : [quest.id]
-    return swapCandidate(this.state.habits, this.state.completions, today, q.daily, out, () => 0) !== null
+    return swapCandidate(this.state.habits, this.state.completions, today, q.daily, out, () => 0, this.state.directions) !== null
   }
 
   /** Заменить невыполненный квест дня другим, подходящим под привычки этого дня. */
@@ -526,7 +580,7 @@ export class GameEngine {
       q.swappedOut = []
     }
     const out = [...(q.swappedOut ?? []), quest.id]
-    const next = swapCandidate(this.state.habits, this.state.completions, today, q.daily, out, seededRandom(`swap:${today}:${q.swaps}:${quest.id}`))
+    const next = swapCandidate(this.state.habits, this.state.completions, today, q.daily, out, seededRandom(`swap:${today}:${q.swaps}:${quest.id}`), this.state.directions)
     if (!next) return fail('noAlternatives')
     q.daily = q.daily.map((x, k) => (k === i ? next : x))
     q.swaps = (q.swaps ?? 0) + 1
@@ -685,7 +739,7 @@ export class GameEngine {
    * до изменения, чтобы новая привычка не попала в их итоги.
    */
   addHabit(habit: Habit, now?: Date) {
-    const error = validateHabit(habit)
+    const error = validateHabit(habit) ?? this.checkCategory(habit)
     if (error) throw new Error(error)
     if (now) this.startOfDay(now)
     this.state.habits.push(habit)
@@ -696,13 +750,85 @@ export class GameEngine {
    * Бонус дня выдаётся только за отметку, а не за архивирование невыполненного.
    */
   updateHabit(habit: Habit, now?: Date) {
-    const error = validateHabit(habit)
+    this.reviveDirection(habit)
+    const error = validateHabit(habit) ?? this.checkCategory(habit)
     if (error) throw new Error(error)
     // Сначала закрываем прошедшие дни по старому набору привычек.
     if (now) this.startOfDay(now)
     const i = this.state.habits.findIndex((h) => h.id === habit.id)
     if (i >= 0) this.state.habits[i] = habit
 
+  }
+
+  /** Направление привычки должно существовать; в удалённое можно только оставить архивную привычку. */
+  private checkCategory(h: Habit): string | null {
+    const d = allDirections(this.state.directions).find((x) => x.id === h.category)
+    if (!d) return 'Нет такого направления'
+    if (d.archived && !h.archived) return `Направлений уже ${DIRECTIONS_MAX} — удалите одно, чтобы вернуть эту привычку`
+    return null
+  }
+
+  /** Привычку из удалённого направления вернули из архива — направление тоже возвращается, если есть место. */
+  private reviveDirection(h: Habit) {
+    if (h.archived) return
+    const ds = this.state.directions
+    const d = ds.custom.find((x) => x.id === h.category && x.archived)
+    if (!d || activeDirections(ds).length >= DIRECTIONS_MAX) return
+    if (validateDirectionName(ds, d.name, d.id) === 'duplicate') return
+    this.state.directions = { ...ds, custom: ds.custom.map((x) => (x.id === d.id ? { id: x.id, name: x.name, icon: x.icon, timer: x.timer } : x)) }
+  }
+
+  // ---------- Направления ----------
+
+  get directions() {
+    return activeDirections(this.state.directions)
+  }
+
+  /** Добавить своё направление (всего не больше DIRECTIONS_MAX). */
+  addDirection(input: { name: string; icon: string; timer: boolean }, id: string): Result<CustomDirection, DirectionError> {
+    if (activeDirections(this.state.directions).length >= DIRECTIONS_MAX) return fail('limit')
+    const err = validateDirectionName(this.state.directions, input.name)
+    if (err) return fail(err)
+    if (allDirections(this.state.directions).some((x) => x.id === id) || isBaseCategory(id)) return fail('duplicate')
+    const icon = (DIRECTION_ICONS as readonly string[]).includes(input.icon) ? input.icon : '⭐'
+    const d: CustomDirection = { id, name: input.name.trim(), icon, timer: input.timer }
+    this.state.directions = { ...this.state.directions, custom: [...this.state.directions.custom, d] }
+    return ok(d)
+  }
+
+  /** Переименовать направление, сменить значок (и таймер — только у своих). */
+  updateDirection(id: string, patch: { name: string; icon: string; timer?: boolean }): Result<true, DirectionError> {
+    const ds = this.state.directions
+    const err = validateDirectionName(ds, patch.name, id)
+    if (err) return fail(err)
+    const icon = (DIRECTION_ICONS as readonly string[]).includes(patch.icon) ? patch.icon : undefined
+    const name = patch.name.trim()
+    if (isBaseCategory(id)) {
+      this.state.directions = { ...ds, base: { ...ds.base, [id]: { name, ...(icon ? { icon } : {}) } } }
+      return ok(true)
+    }
+    const i = ds.custom.findIndex((x) => x.id === id && !x.archived)
+    if (i < 0) return fail('notFound')
+    const custom = [...ds.custom]
+    custom[i] = { ...custom[i], name, icon: icon ?? custom[i].icon, timer: patch.timer ?? custom[i].timer }
+    this.state.directions = { ...ds, custom }
+    return ok(true)
+  }
+
+  /**
+   * Удалить своё направление. Нельзя, пока в нём есть действующие привычки.
+   * Если есть архивные привычки или история — направление скрывается, но остаётся для истории.
+   */
+  removeDirection(id: string): Result<true, DirectionError> {
+    if (isBaseCategory(id)) return fail('base')
+    const ds = this.state.directions
+    const d = ds.custom.find((x) => x.id === id && !x.archived)
+    if (!d) return fail('notFound')
+    const habits = this.state.habits.filter((h) => h.category === id)
+    if (habits.some((h) => !h.archived)) return fail('hasHabits')
+    const custom = habits.length ? ds.custom.map((x) => (x.id === id ? { ...x, archived: true } : x)) : ds.custom.filter((x) => x.id !== id)
+    this.state.directions = { ...ds, custom }
+    return ok(true)
   }
 
   /** Отметить привычку выполненной сегодня. */

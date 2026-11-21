@@ -3,6 +3,7 @@ import { dayOf, needs, type GameEngine, type GameId, type Habit, type Profile } 
 import { TabBar, type Tab } from './components/TabBar'
 import { LIBRARY } from './library'
 import { HabitsManager } from './screens/HabitsManager'
+import { Directions } from './screens/Directions'
 import { Games } from './screens/Games'
 import { Home } from './screens/Home'
 import { SnakeScreen } from './screens/SnakeScreen'
@@ -42,6 +43,7 @@ export default function App() {
   const { engine, now, act, storageOk, replace } = useGame()
   const [tab, setTab] = useState<Tab>('today')
   const [managing, setManaging] = useState(false)
+  const [directionsOpen, setDirectionsOpen] = useState(false)
   const [settings, setSettings] = useState(false)
   const [playing, setPlaying] = useState<GameId | null>(null)
   /** Короткое сообщение поверх любого экрана (живой регион всегда в DOM). */
@@ -63,7 +65,7 @@ export default function App() {
       // Сессия засчитывается в день, когда она фактически закончилась.
       // Если это было в прошлый день (приложение было закрыто), прошлый день уже подведён — без отметки.
       const day = dayOf(new Date(endedAt)) < today ? dayOf(new Date(endedAt)) : today
-      const value = () => needs(e.state.habits, e.state.completions, today).find((n) => n.category === h.category)!
+      const value = () => needs(e.state.habits, e.state.completions, today, e.state.directions).find((n) => n.category === h.category)!
       const before = value()
       const r = day === today ? e.complete(h.id, at) : null
       e.logSession({ habitId: h.id, day, minutes, moodBefore })
@@ -111,6 +113,7 @@ export default function App() {
           <Timer
             key={timer.habitId}
             habit={timerHabit}
+            directions={s.directions}
             data={timer.data}
             onChange={(data) => {
               writeTimer(data)
@@ -151,27 +154,49 @@ export default function App() {
     )
   }
 
+  if (directionsOpen && s.profile) {
+    return (
+      <div className="app">
+        <main>
+          <Directions engine={engine} act={act} onClose={() => setDirectionsOpen(false)} />
+        </main>
+      </div>
+    )
+  }
+
   if (managing) {
     return (
       <div className="app">
         <main>
           <HabitsManager
             habits={s.habits}
-            onAdd={(h) =>
-              act((e, at) => {
-                e.addHabit(h, at)
-                e.startOfDay(at)
-              })
-            }
-            onUpdate={(h) =>
-              act((e, at) => {
-                e.updateHabit(h, at)
-                e.startOfDay(at) // квесты сразу подстраиваются под изменения
-              })
-            }
+            directions={s.directions}
+            onAdd={(h) => {
+              try {
+                act((e, at) => {
+                  e.addHabit(h, at)
+                  e.startOfDay(at)
+                })
+              } catch (err) {
+                setFlash(err instanceof Error ? err.message : 'Не получилось сохранить')
+              }
+            }}
+            onUpdate={(h) => {
+              try {
+                act((e, at) => {
+                  e.updateHabit(h, at)
+                  e.startOfDay(at) // квесты сразу подстраиваются под изменения
+                })
+              } catch (err) {
+                setFlash(err instanceof Error ? err.message : 'Не получилось сохранить')
+              }
+            }}
             onClose={() => setManaging(false)}
           />
         </main>
+        <div className={`home-notice ${flash ? 'on' : ''}`}>
+          <span role="status">{flash ?? ''}</span>
+        </div>
       </div>
     )
   }
@@ -204,6 +229,7 @@ export default function App() {
               })
             }
             onHabits={() => setManaging(true)}
+            onDirections={() => setDirectionsOpen(true)}
             state={s}
             onRestore={(st) => {
               if (!replace(st)) return false

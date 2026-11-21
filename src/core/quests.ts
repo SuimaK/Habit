@@ -1,4 +1,5 @@
 import { addDays, daysBetween, weekday, weekStart, type Day } from './day'
+import { BASE_CATEGORIES, directionName, initialDirections, type DirectionsState } from './directions'
 import type { Category, Completion, Habit } from './models'
 
 /**
@@ -62,7 +63,13 @@ export function habitsKey(habits: Habit[]): string {
 
 export const initialQuests = (): QuestState => ({ dailyDay: null, daily: [], weekly: null, claimedCount: 0 })
 
-const CATEGORY_TITLE: Record<Category, string> = { nutrition: 'Питание', workout: 'Тренировки', meditation: 'Медитация' }
+/** Направления, в которых есть привычки: сначала стандартные в заданном порядке, потом свои. */
+function categoriesOf(habits: Habit[], order: Category[]): Category[] {
+  const present = [...new Set(habits.map((h) => h.category))]
+  return [...order.filter((c) => present.includes(c)), ...present.filter((c) => !order.includes(c))]
+}
+
+const categoryTitle = (dirs: DirectionsState, cat: Category, n: number) => `${directionName(dirs, cat)}: все ${n} ${pluralHabits(n)} за день`
 
 /** Детерминированный генератор случайных чисел от строки: квесты дня не меняются при перезапуске. */
 export function seededRandom(seed: string): () => number {
@@ -119,12 +126,12 @@ function scheduledOn(habits: Habit[], day: Day): Habit[] {
 type Candidate = Omit<DailyQuest, 'id' | 'claimed'>
 
 /** Все возможные квесты дня под привычки этого дня (отдельные привычки — сначала посложнее). */
-function dailyCandidates(habits: Habit[], day: Day, rnd: () => number): Candidate[] {
+function dailyCandidates(habits: Habit[], day: Day, rnd: () => number, dirs: DirectionsState): Candidate[] {
   const today = scheduledOn(habits, day)
   const candidates: Candidate[] = []
-  for (const cat of ['nutrition', 'workout', 'meditation'] as const) {
+  for (const cat of categoriesOf(today, BASE_CATEGORIES)) {
     const n = today.filter((h) => h.category === cat).length
-    if (n >= 2) candidates.push({ title: `${CATEGORY_TITLE[cat]}: все ${n} ${pluralHabits(n)} за день`, goal: { kind: 'category', category: cat, count: n } })
+    if (n >= 2) candidates.push({ title: categoryTitle(dirs, cat, n), goal: { kind: 'category', category: cat, count: n } })
   }
   if (today.length >= 3) {
     const n = Math.ceil(today.length * 0.6)
@@ -138,9 +145,9 @@ function dailyCandidates(habits: Habit[], day: Day, rnd: () => number): Candidat
 }
 
 /** Три ежедневных квеста под привычки этого дня. */
-export function generateDaily(habits: Habit[], day: Day): DailyQuest[] {
+export function generateDaily(habits: Habit[], day: Day, dirs: DirectionsState = initialDirections()): DailyQuest[] {
   const rnd = seededRandom(`daily:${day}`)
-  const candidates = dailyCandidates(habits, day, rnd)
+  const candidates = dailyCandidates(habits, day, rnd, dirs)
   // Берём разнотипные: не больше двух «по направлению / всего за день» и смешиваем.
   const picked = shuffle(candidates.filter((c) => c.goal.kind !== 'habit'), rnd).slice(0, 2)
   for (const c of candidates) {
@@ -161,10 +168,11 @@ export function swapCandidate(
   current: DailyQuest[],
   swappedOut: string[],
   rnd: () => number,
+  dirs: DirectionsState = initialDirections(),
 ): DailyQuest | null {
   const have = new Set(current.map((q) => q.id))
   // Уже выполненный квест на замену не годится — иначе награда без усилий.
-  const all = dailyCandidates(habits, day, rnd)
+  const all = dailyCandidates(habits, day, rnd, dirs)
     .map((c) => ({ ...c, id: questId(day, c.goal), claimed: false }))
     .filter((c) => !have.has(c.id) && !dailyProgress(c, habits, completions, day).complete)
   const fresh = all.filter((c) => !swappedOut.includes(c.id))
@@ -185,7 +193,8 @@ export function questId(day: Day, goal: DailyGoal): string {
 }
 
 /** Название квеста с актуальным именем привычки (после переименования). */
-export function questTitle(q: DailyQuest, habits: Habit[]): string {
+export function questTitle(q: DailyQuest, habits: Habit[], dirs?: DirectionsState): string {
+  if (q.goal.kind === 'category') return dirs ? categoryTitle(dirs, q.goal.category, q.goal.count) : q.title
   if (q.goal.kind !== 'habit') return q.title
   const id = q.goal.habitId
   const h = habits.find((x) => x.id === id)
@@ -251,7 +260,7 @@ export function generateWeekly(habits: Habit[], day: Day, prev?: WeeklyQuest | n
   const same = prev && prev.weekStart === start ? prev : null
   const active = habits.filter((h) => !h.archived)
   const lines: WeeklyLine[] = []
-  for (const cat of ['workout', 'meditation', 'nutrition'] as const) {
+  for (const cat of categoriesOf(active, ['workout', 'meditation', 'nutrition'])) {
     const planned = active.filter((h) => h.category === cat).reduce((s, h) => s + perWeek(h), 0)
     if (planned === 0) continue
     const kept = same?.lines.find((l) => l.category === cat)

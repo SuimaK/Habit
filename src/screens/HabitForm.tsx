@@ -1,18 +1,21 @@
 import { useState } from 'react'
 import {
   DIFFICULTY_REWARD,
+  activeDirections,
+  directionOf,
   validateHabit,
-  type Category,
+  type DirectionsState,
   type Difficulty,
   type Frequency,
   type Habit,
   type TargetUnit,
   type TimeOfDay,
 } from '../core'
-import { CATEGORY_LABEL, DIFFICULTY_LABEL, TIME_LABEL, WEEKDAYS } from '../labels'
+import { DIFFICULTY_LABEL, TIME_LABEL, WEEKDAYS } from '../labels'
 
 interface Props {
   habit: Habit
+  directions: DirectionsState
   isNew: boolean
   onSave: (h: Habit) => void
   onCancel: () => void
@@ -23,7 +26,7 @@ interface Props {
 const UNIT_LABEL: Record<TargetUnit, string> = { times: 'раз', minutes: 'минут', portions: 'порций' }
 
 /** Конструктор привычки: название, направление, сложность, частота, время, цель. */
-export function HabitForm({ habit, isNew, onSave, onCancel, onArchive }: Props) {
+export function HabitForm({ habit, directions, isNew, onSave, onCancel, onArchive }: Props) {
   const [h, setH] = useState<Habit>(habit)
   const [error, setError] = useState<string | null>(null)
   const set = (patch: Partial<Habit>) => {
@@ -31,6 +34,8 @@ export function HabitForm({ habit, isNew, onSave, onCancel, onArchive }: Props) 
     setH((x) => ({ ...x, ...patch }))
   }
   const f = h.frequency
+  const current = directionOf(directions, h.category)
+  const dirs = activeDirections(directions)
   const setFreq = (fr: Frequency) => set({ frequency: fr })
 
   function save() {
@@ -66,13 +71,15 @@ export function HabitForm({ habit, isNew, onSave, onCancel, onArchive }: Props) 
 
       <fieldset className="field">
         <legend>Направление</legend>
-        <div className="seg" role="radiogroup">
-          {(['nutrition', 'workout', 'meditation'] as Category[]).map((c) => (
-            <button type="button" key={c} role="radio" aria-checked={h.category === c} className={h.category === c ? 'on' : ''} onClick={() => set({ category: c })}>
-              {CATEGORY_LABEL[c]}
+        <div className="seg dir-seg" role="radiogroup">
+          {dirs.map((d) => (
+            <button type="button" key={d.id} role="radio" aria-checked={h.category === d.id} className={h.category === d.id ? 'on' : ''} onClick={() => set({ category: d.id })}>
+              <span aria-hidden>{d.icon} </span>
+              {d.name}
             </button>
           ))}
         </div>
+        {current.archived && <p className="muted field-note">Направление «{current.name}» удалено — выбери другое или верни его, вернув привычку из архива.</p>}
       </fieldset>
 
       <fieldset className="field">
