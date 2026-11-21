@@ -79,7 +79,11 @@ export function HabitForm({ habit, directions, isNew, onSave, onCancel, onArchiv
             </button>
           ))}
         </div>
-        {current.archived && <p className="muted field-note">Направление «{current.name}» удалено — выбери другое или верни его, вернув привычку из архива.</p>}
+        {current.archived && (
+          <p className="muted field-note">
+            Направление «{current.name}» удалено — выбери для привычки другое. Если просто вернуть привычку из архива, направление вернётся, когда для него есть место.
+          </p>
+        )}
       </fieldset>
 
       <fieldset className="field">

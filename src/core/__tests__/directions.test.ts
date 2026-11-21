@@ -104,4 +104,52 @@ describe('направления', () => {
     expect(s.directions.custom[1].icon).toBe('⭐')
     expect(s.habits.map((h) => h.category)).toEqual(['a', 'nutrition'])
   })
+  it('копия сверх лимита: привычки лишних направлений уходят в архив', () => {
+    const s = loadState({
+      habits: [inDir(habit(), 'a'), inDir(habit(), 'b'), inDir(habit(), 'c')],
+      directions: { custom: [{ id: 'a', name: 'A' }, { id: 'b', name: 'B' }, { id: 'c', name: 'C' }] },
+    })
+    expect(s.habits.map((h) => h.archived)).toEqual([false, false, true])
+  })
+
+  it('цвет своего направления выбирается свободный и не меняется после удаления других', () => {
+    const e = engine()
+    must(e.addDirection({ name: 'A', icon: '📚', timer: false }, 'a'))
+    must(e.addDirection({ name: 'B', icon: '📚', timer: false }, 'b'))
+    must(e.removeDirection('a'))
+    expect(e.directions.find((x) => x.id === 'b')!.tone).toBe('c2')
+    must(e.addDirection({ name: 'C', icon: '📚', timer: false }, 'c'))
+    expect(e.directions.find((x) => x.id === 'c')!.tone).toBe('c1')
+  })
+
+  it('вернуть из архива в удалённое направление, когда его имя занято, — понятная ошибка', () => {
+    const e = engine()
+    must(e.addDirection({ name: 'Сон', icon: '😴', timer: false }, 'd1'))
+    const h = inDir(habit(), 'd1')
+    e.addHabit(h, at(16))
+    e.updateHabit({ ...h, archived: true }, at(16))
+    must(e.removeDirection('d1'))
+    must(e.addDirection({ name: 'Сон', icon: '😴', timer: false }, 'd2'))
+    expect(() => e.updateHabit({ ...h, archived: false }, at(16))).toThrow(/уже есть другое/)
+    e.updateHabit({ ...h, category: 'd2', archived: false }, at(16))
+    expect(e.state.habits[0].category).toBe('d2')
+  })
+
+  it('квест по направлению без привычек убирается при изменении привычек', () => {
+    const e = engine()
+    must(e.addDirection({ name: 'Сон', icon: '😴', timer: false }, 'd1'))
+    const a = inDir(habit(), 'd1'), b = inDir(habit(), 'd1'), c = habit('hard')
+    for (const h of [a, b, c]) e.addHabit(h, at(16))
+    e.startOfDay(at(16))
+    const q = e.state.quests.daily.find((x) => x.goal.kind === 'habit' && x.goal.habitId === c.id)
+    if (q) {
+      must(e.complete(c.id, at(16)))
+      must(e.claimDaily(q.id, at(16)))
+    }
+    e.updateHabit({ ...a, category: 'workout' }, at(16))
+    e.updateHabit({ ...b, category: 'workout' }, at(16))
+    must(e.removeDirection('d1'))
+    e.startOfDay(at(16))
+    expect(e.state.quests.daily.some((x) => x.goal.kind === 'category' && x.goal.category === 'd1')).toBe(false)
+  })
 })

@@ -217,7 +217,8 @@ export function Today({ engine, now, act, storageOk, onManage, onQuests, onTimer
             const weekTarget = h.frequency.kind === 'timesPerWeek' ? h.frequency.times : 0
             const blocked = weekly && !done && weekDone >= weekTarget
             const xp = Math.round(DIFFICULTY_REWARD[h.difficulty].xp * multiplier)
-            const timed = directionOf(s.directions, h.category).timer && !done && !blocked
+            const dir = directionOf(s.directions, h.category)
+            const timed = dir.timer && !dir.archived && !done && !blocked
             return (
               <li key={h.id} className={`habit ${done ? 'done' : ''} ${blocked ? 'blocked' : ''} ${timed ? 'timed' : ''}`}>
                 <button

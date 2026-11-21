@@ -9,6 +9,7 @@ import {
   dayOf,
   daysBetween,
   directionName,
+  toneOf,
   questTitle,
   weeklyProgress,
   type GameEngine,
@@ -182,7 +183,7 @@ export function Quests({ engine, now, act }: Props) {
               {weeklyProgress(q.weekly, s.habits, s.completions).map(({ line, progress }) => (
                 <div key={line.category} className="weekly-line">
                   <span>{directionName(s.directions, line.category)}</span>
-                  <Progress done={progress.done} target={progress.target} category={line.category} />
+                  <Progress done={progress.done} target={progress.target} category={toneOf(s.directions, line.category)} />
                 </div>
               ))}
               <p className="quest-reward">

@@ -41,12 +41,12 @@ export function RewardScreen({ result, onClose }: { result: SessionResult; onClo
             </span>
           </div>
         )}
-        {ev && need.after > need.before && (
+        {ev && need.label && need.after > need.before && (
           <p className="reward-need">
             {need.label} +{need.after - need.before} ({need.before} → {need.after})
           </p>
         )}
-        {ev && need.after === need.before && need.after >= need.max && (
+        {ev && need.label && need.after === need.before && need.after >= need.max && (
           <p className="reward-need">
             {need.label} на максимуме ({need.max}/{need.max})
           </p>

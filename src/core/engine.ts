@@ -9,7 +9,9 @@ import {
   DIRECTION_ICONS,
   DIRECTION_NAME_MAX,
   DIRECTIONS_MAX,
+  TONES,
   activeDirections,
+  freeTone,
   allDirections,
   initialDirections,
   isBaseCategory,
@@ -150,7 +152,8 @@ function parseDirections(v: unknown): DirectionsState {
       // Сверх лимита направления сохраняются как удалённые, чтобы не потерять привычки.
       const archived = c.archived === true || active >= DIRECTIONS_MAX
       if (!archived) active++
-      d.custom.push({ id: c.id, name, icon: icon(c.icon) ?? '⭐', timer: c.timer === true, ...(archived ? { archived: true } : {}) })
+      const tone = typeof c.tone === 'string' && TONES.includes(c.tone) ? c.tone : undefined
+      d.custom.push({ id: c.id, name, icon: icon(c.icon) ?? '⭐', timer: c.timer === true, ...(tone ? { tone } : {}), ...(archived ? { archived: true } : {}) })
     }
   }
   return d
@@ -192,12 +195,15 @@ export function loadState(raw: unknown): GameState {
   const day = (v: unknown) => (typeof v === 'string' ? v : null)
   const directions = parseDirections(r.directions)
   const known = new Set(allDirections(directions).map((d) => d.id))
+  const gone = new Set(allDirections(directions).filter((d) => d.archived).map((d) => d.id))
   return {
     version: 1,
     // Привычка с неизвестным направлением (испорченный файл) переносится в «Питание».
     habits: arr<Habit>(r.habits, [])
       .filter(isValidHabit)
-      .map((h) => (known.has(h.category) ? h : { ...h, category: 'nutrition' })),
+      .map((h) => (known.has(h.category) ? h : { ...h, category: 'nutrition' }))
+      // Привычки удалённого направления (например, сверх лимита в копии) — в архив.
+      .map((h) => (!h.archived && gone.has(h.category) ? { ...h, archived: true } : h)),
     directions,
     completions: arr<Completion>(r.completions, [])
       .filter((c) => c && typeof c === 'object' && typeof c.habitId === 'string' && isDay(c.day))
@@ -764,7 +770,11 @@ export class GameEngine {
   private checkCategory(h: Habit): string | null {
     const d = allDirections(this.state.directions).find((x) => x.id === h.category)
     if (!d) return 'Нет такого направления'
-    if (d.archived && !h.archived) return `Направлений уже ${DIRECTIONS_MAX} — удалите одно, чтобы вернуть эту привычку`
+    if (d.archived && !h.archived) {
+      if (validateDirectionName(this.state.directions, d.name, d.id) === 'duplicate')
+        return `Направление «${d.name}» удалено, а с таким названием уже есть другое — выбери его для привычки`
+      return `Направлений уже ${DIRECTIONS_MAX} — удали одно, чтобы вернуть эту привычку`
+    }
     return null
   }
 
@@ -791,7 +801,7 @@ export class GameEngine {
     if (err) return fail(err)
     if (allDirections(this.state.directions).some((x) => x.id === id) || isBaseCategory(id)) return fail('duplicate')
     const icon = (DIRECTION_ICONS as readonly string[]).includes(input.icon) ? input.icon : '⭐'
-    const d: CustomDirection = { id, name: input.name.trim(), icon, timer: input.timer }
+    const d: CustomDirection = { id, name: input.name.trim(), icon, timer: input.timer, tone: freeTone(this.state.directions) }
     this.state.directions = { ...this.state.directions, custom: [...this.state.directions.custom, d] }
     return ok(d)
   }

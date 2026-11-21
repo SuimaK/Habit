@@ -65,7 +65,9 @@ export default function App() {
       // Сессия засчитывается в день, когда она фактически закончилась.
       // Если это было в прошлый день (приложение было закрыто), прошлый день уже подведён — без отметки.
       const day = dayOf(new Date(endedAt)) < today ? dayOf(new Date(endedAt)) : today
-      const value = () => needs(e.state.habits, e.state.completions, today, e.state.directions).find((n) => n.category === h.category)!
+      // Шкалы может не быть (направление удалено) — тогда показываем нули, без падения.
+      const value = () =>
+        needs(e.state.habits, e.state.completions, today, e.state.directions).find((n) => n.category === h.category) ?? { label: '', value: 0, max: 0 }
       const before = value()
       const r = day === today ? e.complete(h.id, at) : null
       e.logSession({ habitId: h.id, day, minutes, moodBefore })

@@ -203,6 +203,10 @@ export function questTitle(q: DailyQuest, habits: Habit[], dirs?: DirectionsStat
 
 /** Квест ещё имеет смысл: привычка из него не удалена и не в архиве. */
 export function questAlive(q: DailyQuest, habits: Habit[]): boolean {
+  if (q.goal.kind === 'category') {
+    const cat = q.goal.category
+    return habits.some((h) => h.category === cat && !h.archived)
+  }
   if (q.goal.kind !== 'habit') return true
   const id = q.goal.habitId
   return habits.some((h) => h.id === id && !h.archived)

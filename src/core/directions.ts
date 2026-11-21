@@ -26,6 +26,8 @@ export interface CustomDirection {
   name: string
   icon: string
   timer: boolean
+  /** Цвет c1…c4: выбирается свободный при создании и больше не меняется. */
+  tone?: string
   archived?: boolean
 }
 
@@ -56,7 +58,7 @@ export const isBaseCategory = (c: unknown): c is BaseCategory => c === 'nutritio
 /** Все направления: сначала стандартные, потом свои (включая удалённые — с пометкой archived). */
 export function allDirections(d: DirectionsState): Direction[] {
   const base = BASE_CATEGORIES.map((id) => ({ id, base: true, tone: id as string, ...BASE[id], name: d.base[id]?.name || BASE[id].name, icon: d.base[id]?.icon || BASE[id].icon }))
-  const custom = d.custom.map((c, i) => ({ tone: `c${(i % 4) + 1}`, id: c.id, name: c.name, icon: c.icon, need: c.name, needMax: CUSTOM_NEED_MAX, timer: c.timer, base: false, archived: c.archived }))
+  const custom = d.custom.map((c, i) => ({ tone: c.tone ?? `c${(i % 4) + 1}`, id: c.id, name: c.name, icon: c.icon, need: c.name, needMax: CUSTOM_NEED_MAX, timer: c.timer, base: false, archived: c.archived }))
   return [...base, ...custom]
 }
 
@@ -83,3 +85,11 @@ export function validateDirectionName(d: DirectionsState, name: string, selfId?:
 
 /** Класс цвета направления: cat-workout, cat-c1 … */
 export const toneOf = (d: DirectionsState, id: Category) => directionOf(d, id).tone
+
+export const TONES = ['c1', 'c2', 'c3', 'c4']
+
+/** Первый цвет, которого нет у действующих своих направлений. */
+export function freeTone(d: DirectionsState): string {
+  const used = new Set(activeDirections(d).map((x) => x.tone))
+  return TONES.find((t) => !used.has(t)) ?? 'c1'
+}
