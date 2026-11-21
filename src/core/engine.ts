@@ -291,7 +291,7 @@ export function loadState(raw: unknown): GameState {
       const g = obj<Partial<GamesState>>(r.games, {})
       const records: GamesState['records'] = {}
       for (const [k, v] of Object.entries(obj<Record<string, unknown>>(g.records, {})))
-        if ((k === 'snack' || k === 'bubbles' || k === 'blocks') && typeof v === 'number' && Number.isFinite(v) && v > 0) records[k] = Math.round(v)
+        if ((k === 'snack' || k === 'lines' || k === 'blocks') && typeof v === 'number' && Number.isFinite(v) && v > 0) records[k] = Math.round(v)
       const playedByDay: Record<Day, number> = {}
       for (const [k, v] of Object.entries(obj<Record<string, unknown>>(g.playedByDay, {})))
         if (isDay(k) && typeof v === 'number' && Number.isFinite(v) && v > 0) playedByDay[k] = v

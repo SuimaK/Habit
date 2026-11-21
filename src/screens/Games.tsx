@@ -85,13 +85,13 @@ export function Games({ engine, now, act, onPlay }: Props) {
           </li>
           <li className="game-row">
             <span className="game-icon" aria-hidden>
-              🫧
+              🧺
             </span>
             <span className="row-text">
-              «Шарики»
-              <small>Стрелялка · рекорд {g.records.bubbles ?? 0}</small>
+              «Грядка»
+              <small>Пять в ряд · рекорд {g.records.lines ?? 0}</small>
             </span>
-            <button type="button" className="btn primary small" disabled={!!block} onClick={() => onPlay('bubbles')} aria-label={`Играть в «Шарики»${cost}`} aria-describedby={block ? 'game-block' : undefined}>
+            <button type="button" className="btn primary small" disabled={!!block} onClick={() => onPlay('lines')} aria-label={`Играть в «Грядку»${cost}`} aria-describedby={block ? 'game-block' : undefined}>
               Играть ♥1
             </button>
           </li>

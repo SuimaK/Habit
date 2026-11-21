@@ -4,7 +4,7 @@ import type { Day } from './day'
  * Мини-игры (ТЗ 3.6): партия стоит жизнь, рекорды дают бейджи (не монеты),
  * дневной лимит игры настраивается, по умолчанию 20 минут.
  */
-export type GameId = 'snack' | 'bubbles' | 'blocks'
+export type GameId = 'snack' | 'lines' | 'blocks'
 export const DEFAULT_GAME_LIMIT_MIN = 20
 export const GAME_LIMIT_OPTIONS = [10, 20, 30, 45, 60, 0] as const
 

@@ -7,7 +7,7 @@ import { Directions } from './screens/Directions'
 import { Games } from './screens/Games'
 import { Home } from './screens/Home'
 import { SnakeScreen } from './screens/SnakeScreen'
-import { BubblesScreen } from './screens/BubblesScreen'
+import { LinesScreen } from './screens/LinesScreen'
 import { BlocksScreen } from './screens/BlocksScreen'
 import { Settings } from './screens/Settings'
 import { Onboarding } from './screens/Onboarding'
@@ -207,8 +207,8 @@ export default function App() {
     return (
       <div className="app">
         <main>
-          {playing === 'bubbles' ? (
-            <BubblesScreen engine={engine} act={act} onExit={() => setPlaying(null)} />
+          {playing === 'lines' ? (
+            <LinesScreen engine={engine} act={act} onExit={() => setPlaying(null)} />
           ) : playing === 'blocks' ? (
             <BlocksScreen engine={engine} act={act} onExit={() => setPlaying(null)} />
           ) : (
