@@ -440,3 +440,20 @@ main {
 }
 .home-notice.on { transform: none; opacity: 1; pointer-events: auto; }
 @media (prefers-reduced-motion: reduce) { .home-notice { transition: none; } }
+
+/* свои квесты */
+.custom-quests { display: flex; flex-direction: column; gap: 12px; }
+.custom-empty { margin: 0; padding: 16px; }
+.custom-quest { padding: 8px 12px 14px; display: flex; flex-direction: column; gap: 10px; }
+.custom-title { padding-left: 0; padding-right: 0; }
+.custom-days { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
+.custom-days button {
+  min-height: 52px; border-radius: 12px; border: 1.5px solid var(--line); background: var(--card);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; cursor: pointer; padding: 0;
+  color: var(--ink); font-weight: 700;
+}
+.custom-days button small { color: var(--muted); font-size: 12px; font-weight: 600; }
+.custom-days button.today { border-color: var(--accent-text); }
+.custom-days button.on { background: color-mix(in srgb, var(--good) 22%, var(--card)); border-color: var(--good-text); color: var(--good-text); }
+.custom-days button:disabled { opacity: 0.45; cursor: default; }
+.custom-foot { display: grid; grid-template-columns: 1fr auto; gap: 12px; align-items: center; }

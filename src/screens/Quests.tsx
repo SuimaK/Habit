@@ -14,6 +14,7 @@ import {
 } from '../core'
 import { CATEGORY_LABEL, plural } from '../labels'
 import { badgeTitles } from './badgeText'
+import { CustomQuests } from './CustomQuests'
 
 interface Props {
   engine: GameEngine
@@ -21,9 +22,9 @@ interface Props {
   act: <T>(fn: (e: GameEngine, now: Date) => T) => T
 }
 
-type Tab = 'day' | 'week'
+type Tab = 'day' | 'week' | 'mine'
 
-/** Квесты: ежедневные и недельный с сундуком. Сюжетные цепочки — в следующих версиях. */
+/** Квесты: ежедневные, недельный с сундуком и свои. Сюжетные цепочки — в следующих версиях. */
 export function Quests({ engine, now, act }: Props) {
   const [tab, setTab] = useState<Tab>('day')
   const [message, setMessage] = useState<string | null>(null)
@@ -60,6 +61,9 @@ export function Quests({ engine, now, act }: Props) {
         </button>
         <button role="tab" aria-selected={tab === 'week'} className={tab === 'week' ? 'on' : ''} onClick={() => setTab('week')}>
           Неделя
+        </button>
+        <button role="tab" aria-selected={tab === 'mine'} className={tab === 'mine' ? 'on' : ''} onClick={() => setTab('mine')}>
+          Свои
         </button>
       </div>
 
@@ -108,6 +112,8 @@ export function Quests({ engine, now, act }: Props) {
           )}
         </section>
       )}
+
+      {tab === 'mine' && <CustomQuests engine={engine} now={now} act={act} report={report} say={setMessage} />}
 
       {tab === 'week' && q.weekly && (
         <section className="card weekly">

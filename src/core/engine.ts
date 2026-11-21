@@ -20,6 +20,15 @@ import {
   type DailyQuest,
   type QuestState,
 } from './quests'
+import {
+  CUSTOM_QUEST_MAX,
+  CUSTOM_QUEST_NAME_MAX,
+  CUSTOM_QUEST_REWARD,
+  customProgress,
+  validateCustomQuest,
+  type CustomQuest,
+  type CustomQuestError,
+} from './customQuests'
 import { REWARD_MAX_PRICE, REWARD_NAME_MAX, validateReward, type PersonalReward, type Redemption, type RewardError } from './rewards'
 import { initialShields, SHIELD_PRICE, consumeShield, type ShieldsState } from './shields'
 import { currentOverallStreak, habitStreak, overallStreak, streakMultiplier } from './streaks'
@@ -62,6 +71,8 @@ export interface GameState {
   /** Личные награды и история их получения. */
   rewards: PersonalReward[]
   redemptions: Redemption[]
+  /** Свои квесты. */
+  customQuests: CustomQuest[]
 }
 
 export const initialState = (): GameState => ({
@@ -86,6 +97,7 @@ export const initialState = (): GameState => ({
   sessions: [],
   rewards: [],
   redemptions: [],
+  customQuests: [],
 })
 
 /** Загрузить сохранённое состояние: недостающие поля (из старых версий) берутся по умолчанию. */
@@ -156,6 +168,18 @@ export function loadState(raw: unknown): GameState {
       )
       .filter((x, i, all) => all.findIndex((y) => y.id === x.id) === i)
       .map((x) => ({ ...x, price: Math.round(x.price) })),
+    customQuests: arr<CustomQuest>(r.customQuests, [])
+      .filter((x) => x && typeof x === 'object' && typeof x.id === 'string' && typeof x.name === 'string')
+      .filter((x, i, all) => all.findIndex((y) => y.id === x.id) === i)
+      .map((x) => ({
+        id: x.id,
+        name: x.name.slice(0, CUSTOM_QUEST_NAME_MAX),
+        difficulty: x.difficulty === 'medium' || x.difficulty === 'hard' ? x.difficulty : 'easy',
+        target: Math.min(7, Math.max(1, Math.round(num(x.target, 1)))),
+        marks: [...new Set(arr<Day>(x.marks, []).filter((d) => typeof d === 'string'))],
+        claimedWeeks: [...new Set(arr<Day>(x.claimedWeeks, []).filter((d) => typeof d === 'string'))],
+        ...(x.archived === true ? { archived: true } : {}),
+      })),
     profile:
       r.profile && typeof r.profile === 'object' && typeof (r.profile as Profile).name === 'string'
         ? (r.profile as Profile)
@@ -408,6 +432,72 @@ export class GameEngine {
     else if (chest.kind === 'shield') this.state.shields = { ...this.state.shields, purchased: this.state.shields.purchased + 1 }
     else this.state.lives = { ...this.state.lives, count: this.state.lives.count + chest.amount }
     ev.chest = chest
+    ev.newBadges = this.checkBadges(now)
+    return ok(ev)
+  }
+
+  // ---------- Свои квесты ----------
+
+  addCustomQuest(q: Pick<CustomQuest, 'id' | 'name' | 'difficulty' | 'target'>): Result<void, CustomQuestError> {
+    const bad = validateCustomQuest(q)
+    if (bad) return fail(bad)
+    if (this.state.customQuests.filter((x) => !x.archived).length >= CUSTOM_QUEST_MAX) return fail('tooMany')
+    this.state.customQuests.push({
+      id: q.id,
+      name: q.name.trim().slice(0, CUSTOM_QUEST_NAME_MAX),
+      difficulty: q.difficulty,
+      target: q.target,
+      marks: [],
+      claimedWeeks: [],
+    })
+    return ok(undefined)
+  }
+
+  updateCustomQuest(q: Pick<CustomQuest, 'id' | 'name' | 'difficulty' | 'target'>): Result<void, CustomQuestError> {
+    const cur = this.state.customQuests.find((x) => x.id === q.id && !x.archived)
+    if (!cur) return fail('notFound')
+    const bad = validateCustomQuest(q)
+    if (bad) return fail(bad)
+    cur.name = q.name.trim().slice(0, CUSTOM_QUEST_NAME_MAX)
+    cur.difficulty = q.difficulty
+    cur.target = q.target
+    return ok(undefined)
+  }
+
+  /** Убрать квест. Если за него уже давали награду, он скрывается (награды не отнимаются). */
+  removeCustomQuest(id: string) {
+    const q = this.state.customQuests.find((x) => x.id === id)
+    if (!q) return
+    if (q.claimedWeeks.length) q.archived = true
+    else this.state.customQuests = this.state.customQuests.filter((x) => x.id !== id)
+  }
+
+  /** Отметить или снять день этой недели (не позже сегодня). */
+  toggleCustomMark(id: string, day: Day, now: Date): Result<boolean, CustomQuestError> {
+    this.startOfDay(now)
+    const today = dayOf(now)
+    const q = this.state.customQuests.find((x) => x.id === id && !x.archived)
+    if (!q) return fail('notFound')
+    if (day > today) return fail('future')
+    if (weekStart(day) !== weekStart(today)) return fail('notThisWeek')
+    if (customProgress(q, today).claimed) return fail('claimed')
+    const has = q.marks.includes(day)
+    q.marks = has ? q.marks.filter((d) => d !== day) : [...q.marks, day]
+    return ok(!has)
+  }
+
+  claimCustom(id: string, now: Date): Result<RewardEvent, CustomQuestError> {
+    this.startOfDay(now)
+    const today = dayOf(now)
+    const q = this.state.customQuests.find((x) => x.id === id && !x.archived)
+    if (!q) return fail('notFound')
+    const p = customProgress(q, today)
+    if (p.claimed) return fail('claimed')
+    if (!p.complete) return fail('notReady')
+    q.claimedWeeks.push(weekStart(today))
+    this.state.quests.claimedCount++
+    const reward = CUSTOM_QUEST_REWARD[q.difficulty]
+    const ev = this.award(reward.xp, reward.coins, now)
     ev.newBadges = this.checkBadges(now)
     return ok(ev)
   }
