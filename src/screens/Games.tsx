@@ -137,7 +137,7 @@ export function Games({ engine, now, act, onPlay }: Props) {
             )
           })}
         </ul>
-        <p className="muted game-info">Бесплатно: 3 жизни каждый день в {refresh}, в запасе до 5.</p>
+        <p className="muted game-info">Бесплатно: каждый день в {refresh} запас пополняется до 5 жизней.</p>
         <p className="muted game-info">
           {g.limitMin ? `Сегодня сыграно: ${Math.min(playedMin, g.limitMin)} из ${g.limitMin} мин.` : `Сегодня сыграно: ${playedMin} мин. Лимит выключен.`}
         </p>

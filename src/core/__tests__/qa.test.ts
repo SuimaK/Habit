@@ -324,28 +324,28 @@ describe('жизни', () => {
     l = refreshLives(l, at(17, 8))
     expect(l.count).toBe(0)
     l = refreshLives(l, at(18, 6))
-    expect(l.count).toBe(3)
+    expect(l.count).toBe(5)
   })
 
   it('0 жизней — партию не начать; после 06:00 — можно', () => {
     const e = new GameEngine()
     e.startOfDay(at(16, 7))
-    for (let i = 0; i < 3; i++) expect(e.startGame(at(16, 8))).toBe(true)
+    for (let i = 0; i < 5; i++) expect(e.startGame(at(16, 8))).toBe(true)
     expect(e.startGame(at(16, 9))).toBe(false)
     expect(e.state.lives.count).toBe(0)
     expect(e.startGame(at(17, 6))).toBe(true)
-    expect(e.state.lives.count).toBe(2)
+    expect(e.state.lives.count).toBe(4)
   })
 
-  it('покупка: 1 за 15, 5 за 60, нехватка монет', () => {
+  it('покупка: 1 за 5, 5 за 20, нехватка монет', () => {
     const e = new GameEngine()
-    e.state.coins = 74
+    e.state.coins = 24
     must(e.buyLives('five'))
     expect(err(e.buyLives('one'))).toBe('notEnoughCoins')
     e.state.coins += 1
     must(e.buyLives('one'))
     expect(e.state.coins).toBe(0)
-    expect(e.state.lives.count).toBe(3 + 6)
+    expect(e.state.lives.count).toBe(5 + 6)
   })
 })
 
