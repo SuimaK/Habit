@@ -59,7 +59,8 @@ const randomPiece = (rnd: () => number): PieceId => Math.min(PIECES.length - 1, 
 function spawn(piece: PieceId): Active {
   const cells = PIECES[piece].cells.map(([x, y]) => [x, y] as [number, number])
   const minY = Math.min(...cells.map(([, y]) => y))
-  return { piece, cells, x: Math.floor((COLS - 1) / 2), y: -minY }
+  // На строку ниже верха: так любую фигуру можно сразу повернуть.
+  return { piece, cells, x: Math.floor((COLS - 1) / 2), y: -minY + 1 }
 }
 
 export function cellsOf(a: Active): Cell[] {

@@ -12,7 +12,7 @@ describe('Блоки', () => {
   it('новая игра: пустое поле, фигура сверху по центру', () => {
     const s = newBlocks(rndFor('plus'))
     expect(s.board.flat().every((c) => c === null)).toBe(true)
-    expect(Math.min(...cellsOf(s.active).map((c) => c.y))).toBe(0)
+    expect(Math.min(...cellsOf(s.active).map((c) => c.y))).toBe(1)
     expect(fits(s.board, s.active)).toBe(true)
     expect(s.over).toBe(false)
   })
@@ -39,11 +39,11 @@ describe('Блоки', () => {
 
   it('фигура падает по тикам и ложится на дно', () => {
     let s = withPiece('dot')
-    for (let i = 0; i < ROWS - 1; i++) s = tick(s, rndFor('dot')).state
+    for (let i = 0; i < ROWS - 2; i++) s = tick(s, rndFor('dot')).state
     expect(cellsOf(s.active)[0].y).toBe(ROWS - 1)
     const r = tick(s, rndFor('dot'))
     expect(r.state.board[ROWS - 1].filter((c) => c !== null)).toHaveLength(1)
-    expect(cellsOf(r.state.active)[0].y).toBe(0) // новая фигура
+    expect(cellsOf(r.state.active)[0].y).toBe(1) // новая фигура
   })
 
   it('сброс: +1 за клетку, тень совпадает с местом посадки', () => {
@@ -51,7 +51,7 @@ describe('Блоки', () => {
     const land = landing(s)
     expect(cellsOf(land)[0].y).toBe(ROWS - 1)
     const r = drop(s, rndFor('dot'))
-    expect(r.state.score).toBe(ROWS - 1)
+    expect(r.state.score).toBe(ROWS - 2)
   })
 
   it('полная линия исчезает, всё выше опускается', () => {
@@ -63,7 +63,7 @@ describe('Блоки', () => {
     const r = drop(s, rndFor('dot'))
     expect(r.cleared).toEqual([ROWS - 1])
     expect(r.state.lines).toBe(1)
-    expect(r.state.score).toBe(LINE_POINTS[1] + (ROWS - 1))
+    expect(r.state.score).toBe(LINE_POINTS[1] + (ROWS - 2))
     expect(r.state.board[ROWS - 1][0]).toBe(1)
     expect(r.state.board[ROWS - 1].filter((c) => c !== null)).toHaveLength(1)
   })
@@ -107,6 +107,14 @@ describe('Блоки', () => {
       }
     }
   })
+  it('любую фигуру можно повернуть сразу после появления', () => {
+    for (const p of PIECES) {
+      if (p.id === 'square' || p.cells.length === 1) continue
+      const s = withPiece(p.id)
+      expect(rotate(s)).not.toBe(s)
+    }
+  })
+
   it('поворот не протаскивает фигуру сквозь стенку из ящиков', () => {
     let s = withPiece('duo')
     const board = s.board.map((r) => [...r])
