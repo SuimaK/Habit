@@ -94,9 +94,9 @@ describe('отметка привычек', () => {
   it('отмену не дать, если монеты уже потрачены', () => {
     const h = habit('hard')
     const e = engine([h])
-    e.state.coins = 10
-    must(e.complete(h.id, at(16))) // +5 +5 бонус = 20
-    must(e.buyLives('one')) // −15 → 5
+    e.state.coins = 0
+    must(e.complete(h.id, at(16))) // +5 +5 бонус = 10
+    must(e.buyLives('one')) // −5 → 5
     expect(err(e.undo(h.id, at(16)))).toBe('coinsAlreadySpent')
   })
 })
@@ -104,10 +104,10 @@ describe('отметка привычек', () => {
 describe('магазин и игры', () => {
   it('покупка жизней и щитов', () => {
     const e = engine()
-    e.state.coins = 74
+    e.state.coins = 24
     must(e.buyLives('five'))
-    expect(e.state.coins).toBe(14)
-    expect(e.state.lives.count).toBe(8) // 3 стартовые + 5
+    expect(e.state.coins).toBe(4)
+    expect(e.state.lives.count).toBe(10) // 5 стартовых + 5
     expect(err(e.buyLives('one'))).toBe('notEnoughCoins')
     e.state.coins = 50
     must(e.buyShield())
@@ -118,11 +118,11 @@ describe('магазин и игры', () => {
   it('партия стоит одну жизнь', () => {
     const e = engine()
     e.startOfDay(at(16, 9))
-    expect([e.startGame(at(16, 10)), e.startGame(at(16, 10)), e.startGame(at(16, 10))]).toEqual([true, true, true])
+    for (let i = 0; i < 5; i++) expect(e.startGame(at(16, 10))).toBe(true)
     expect(e.startGame(at(16, 11))).toBe(false)
     expect(e.state.lives.count).toBe(0)
     expect(e.startGame(at(17, 6, 1))).toBe(true) // обновились в 06:00
-    expect(e.state.lives.count).toBe(2)
+    expect(e.state.lives.count).toBe(4)
   })
 
   it('состояние переживает сохранение в JSON', () => {

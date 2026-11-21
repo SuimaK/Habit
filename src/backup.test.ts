@@ -41,7 +41,7 @@ describe('резервная копия', () => {
     // Привычка без нужных полей отбрасывается, с неизвестным направлением — переносится в «Питание».
     expect(r.state.habits.map((h) => h.id)).toEqual(['h1', 'y'])
     expect(r.state.habits[1].category).toBe('nutrition')
-    expect(r.state.lives.count).toBe(3)
+    expect(r.state.lives.count).toBe(5)
   })
   it('CSV: заголовок, экранирование, защита от формул', () => {
     const { text, name } = makeCsv(sample(), now)

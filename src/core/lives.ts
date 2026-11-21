@@ -1,15 +1,15 @@
 /**
  * Жизни для мини-игр (ТЗ 3.6).
- * Каждый день в 06:00 добавляется 3 бесплатные жизни, но бесплатно запас не растёт выше 5.
+ * Каждый день в 06:00 запас бесплатно пополняется до 5 жизней (выше 5 бесплатно не растёт).
  * Купленные жизни добавляются сверх лимита.
  */
-export const FREE_LIVES_PER_DAY = 3
+export const FREE_LIVES_PER_DAY = 5
 export const FREE_LIVES_CAP = 5
 export const LIVES_REFRESH_HOUR = 6
 
 export const LIFE_PACKS = {
-  one: { lives: 1, price: 15 },
-  five: { lives: 5, price: 60 },
+  one: { lives: 1, price: 5 },
+  five: { lives: 5, price: 20 },
 } as const
 export type LifePack = keyof typeof LIFE_PACKS
 
