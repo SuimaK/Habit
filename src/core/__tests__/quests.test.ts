@@ -135,6 +135,15 @@ describe('недельный квест и сундук', () => {
     ])
   })
 
+  it('при уменьшении плана посреди недели цель уменьшается', () => {
+    const a = withCat(habit(), 'workout'), b = withCat(habit(), 'workout')
+    const prev = generateWeekly([a, b], d(16))
+    expect(prev.lines[0].target).toBe(10)
+    expect(generateWeekly([a], d(18), prev).lines[0].target).toBe(5)
+    const weekly1 = withCat(habit('easy', { kind: 'timesPerWeek', times: 1 }), 'workout')
+    expect(generateWeekly([weekly1], d(18), prev).lines[0].target).toBe(1)
+  })
+
   it('снять отметку, засчитанную в забранный квест, нельзя', () => {
     const a = withCat(habit(), 'nutrition'), b = withCat(habit(), 'nutrition'), c = withCat(habit(), 'workout')
     const e = engine([a, b, c])

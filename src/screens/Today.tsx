@@ -259,6 +259,7 @@ export function Today({ engine, now, act, storageOk, onManage, onQuests }: Props
           {questProgress!.complete ? (
             <button
               className="btn primary small"
+              aria-label={`Забрать награду: ${questTitle(questOfDay, s.habits)}`}
               onClick={() => {
                 const r = act((e, at) => e.claimDaily(questOfDay.id, at))
                 if (r.ok)

@@ -117,7 +117,10 @@ export function loadState(raw: unknown): GameState {
         daily: arr<DailyQuest>(q.daily, []).filter(
           (x) => x && typeof x === 'object' && typeof x.id === 'string' && x.goal && typeof x.goal === 'object',
         ),
-        weekly: q.weekly && typeof q.weekly === 'object' && Array.isArray(q.weekly.lines) ? q.weekly : null,
+        weekly:
+          q.weekly && typeof q.weekly === 'object' && Array.isArray(q.weekly.lines)
+            ? { ...q.weekly, lines: q.weekly.lines.filter((l) => l && typeof l === 'object' && typeof l.target === 'number') }
+            : null,
         claimedCount: num(q.claimedCount, 0),
       }
     })(),

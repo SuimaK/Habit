@@ -222,7 +222,9 @@ export function generateWeekly(habits: Habit[], day: Day, prev?: WeeklyQuest | n
     const planned = active.filter((h) => h.category === cat).reduce((s, h) => s + perWeek(h), 0)
     if (planned === 0) continue
     const kept = same?.lines.find((l) => l.category === cat)
-    const target = kept ? kept.target : Math.min(14, Math.max(1, Math.round((planned * 0.7 * daysLeft) / 7)))
+    const fullWeek = Math.min(14, Math.max(1, Math.round(planned * 0.7)))
+    // Прежняя цель сохраняется, но не больше, чем позволяет новый (уменьшенный) план.
+    const target = kept ? Math.min(kept.target, fullWeek) : Math.max(1, Math.round((fullWeek * daysLeft) / 7))
     lines.push({ category: cat, target })
   }
   return { weekStart: start, lines, claimed: false, chest: null }
