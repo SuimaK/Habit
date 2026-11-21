@@ -213,13 +213,15 @@ describe('изменение набора привычек переписыва�
     expect(e.state.totalXp).toBe(40)
   })
 
-  it('архивирование последней невыполненной привычки сразу выдаёт бонус дня', () => {
+  it('архивирование невыполненных привычек не даёт бонус дня', () => {
     const a = habit(), b = habit()
     const e = engine([a, b])
     must(e.complete(a.id, at(16)))
     e.updateHabit({ ...b, archived: true }, at(16))
     expect(e.plan.allFixedDone(d(16))).toBe(true)
-    expect(e.state.bonusByDay[d(16)]).toEqual({ xp: 30, coins: 5 })
+    expect(e.state.bonusByDay[d(16)]).toBeUndefined()
+    e.startOfDay(at(16, 23))
+    expect(e.state.bonusByDay[d(16)]).toBeUndefined()
   })
 
   it('смена частоты: из ежедневной в «раз в неделю» после отметки — повтор сегодня запрещён', () => {
@@ -544,5 +546,15 @@ describe('финальная проверка (0a698b1): разморажива�
     expect(e.state.bestStreak).toBe(7)
     expect(e.state.shields.freeUsedWeeks).toEqual([])
     expect(e.state.lives.count).toBe(2)
+  })
+})
+
+describe('блок 3: проверка цели привычки', () => {
+  it('цель — целое число от 1 до 100 000', async () => {
+    const { validateHabit } = await import('..')
+    const t = (amount: number) => validateHabit({ ...habit(), target: { amount, unit: 'minutes' } })
+    expect(t(1)).toBeNull()
+    expect(t(100_000)).toBeNull()
+    for (const bad of [0, -5, 1.5, 0.0001, 100_001, 1e20, NaN, Infinity]) expect(t(bad)).not.toBeNull()
   })
 })

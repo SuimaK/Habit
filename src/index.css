@@ -16,6 +16,7 @@
   --need-meditation: #7b8ce0;
   --xp: #9b6bd6;
   --xp-text: #7543b5;
+  --on-accent: #ffffff;
   --warn-bg: #fde8d8;
   --warn-ink: #7a3410;
   --bar-bg: #efe4d6;
@@ -80,6 +81,7 @@
     --accent-text: #f2a07e;
     --xp-text: #c4a6f5;
     --need-nutrition-strong: #e9b44c;
+    --on-accent: #2a1408;
     --warn-bg: #4a2a1c;
     --warn-ink: #ffd9c4;
   }
@@ -160,7 +162,7 @@ main {
 .done .check::after { content: '✓'; color: #fff; }
 .done .cat-nutrition::after { color: #2a2118; }
 .habit-btn:active .check { transform: scale(0.9); }
-.habit-name { flex: 1; font-size: 16px; }
+.habit-name { flex: 1; min-width: 0; font-size: 16px; overflow-wrap: anywhere; }
 .habit-name small { color: var(--muted); font-size: 13px; }
 .done .habit-name { color: var(--muted); text-decoration: line-through; text-decoration-color: var(--line); }
 .habit-xp { color: var(--xp-text); font-weight: 700; font-size: 14px; font-variant-numeric: tabular-nums; }
@@ -221,7 +223,7 @@ main {
 }
 .crash h1 { font-size: 22px; margin: 0; }
 .crash button {
-  min-height: 48px; border-radius: 14px; border: 0; background: var(--accent-text); color: #fff; font-weight: 700;
+  min-height: 48px; border-radius: 14px; border: 0; background: var(--accent-text); color: var(--on-accent); font-weight: 700;
 }
 .crash .link { background: none; color: var(--muted); font-weight: 400; text-decoration: underline; }
 .crash .danger { background: #b3361f; }
@@ -231,7 +233,7 @@ main {
   min-height: 44px; padding: 0 18px; border-radius: 14px; border: 0; font-weight: 700; font-size: 16px; cursor: pointer;
 }
 .btn.small { min-height: 44px; padding: 0 12px; font-size: 15px; }
-.btn.primary { background: var(--accent-text); color: #fff; }
+.btn.primary { background: var(--accent-text); color: var(--on-accent); }
 .btn.primary:disabled { opacity: 0.4; cursor: default; }
 .btn.ghost { background: none; color: var(--accent-text); }
 .btn.wide { width: 100%; }
@@ -266,7 +268,7 @@ main {
   border-radius: 16px; border: 2px solid var(--line); background: var(--card); font-size: 17px; cursor: pointer;
 }
 .choice.on { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, var(--card)); }
-.choice-text { display: flex; flex-direction: column; }
+.choice-text { display: flex; flex-direction: column; min-width: 0; overflow-wrap: anywhere; }
 .choice-text small, .row-text small { color: var(--muted); font-size: 13px; }
 .swatches { display: flex; flex-direction: column; gap: 6px; }
 .swatches > div { display: flex; flex-wrap: wrap; gap: 10px; }
@@ -288,7 +290,7 @@ main {
   background: none; border: 0; text-align: left; cursor: pointer; border-radius: 12px;
 }
 .row:active { background: var(--bar-bg); }
-.row-text { flex: 1; display: flex; flex-direction: column; font-size: 16px; }
+.row-text { flex: 1; min-width: 0; display: flex; flex-direction: column; font-size: 16px; overflow-wrap: anywhere; }
 .chev { color: var(--muted); font-size: 22px; }
 .seg { display: flex; flex-wrap: wrap; gap: 8px; }
 .seg button, .days button, .stepper button {

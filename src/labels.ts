@@ -54,9 +54,29 @@ export function plural(n: number, one: string, few: string, many: string): strin
   return many
 }
 
-export const SKINS = ['#f6d9c0', '#f1c7a5', '#dca37c', '#b07650', '#7a4c33']
-export const HAIRS = ['#2b1d16', '#6b4430', '#b5723a', '#e2c27a', '#a3a3a3', '#c4553a']
-export const SHIRTS = ['#e9875f', '#7b8ce0', '#63a36b', '#d16fa0', '#e9b44c', '#5e6b8c']
+export const SKINS = [
+  { color: '#f6d9c0', name: 'очень светлая' },
+  { color: '#f1c7a5', name: 'светлая' },
+  { color: '#dca37c', name: 'смуглая' },
+  { color: '#b07650', name: 'тёмная' },
+  { color: '#7a4c33', name: 'очень тёмная' },
+]
+export const HAIRS = [
+  { color: '#2b1d16', name: 'чёрные' },
+  { color: '#6b4430', name: 'каштановые' },
+  { color: '#b5723a', name: 'медные' },
+  { color: '#e2c27a', name: 'светлые' },
+  { color: '#a3a3a3', name: 'седые' },
+  { color: '#c4553a', name: 'рыжие' },
+]
+export const SHIRTS = [
+  { color: '#e9875f', name: 'коралловая' },
+  { color: '#7b8ce0', name: 'синяя' },
+  { color: '#63a36b', name: 'зелёная' },
+  { color: '#d16fa0', name: 'розовая' },
+  { color: '#e9b44c', name: 'жёлтая' },
+  { color: '#5e6b8c', name: 'серо-синяя' },
+]
 
 export interface Look {
   skin: string

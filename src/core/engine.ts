@@ -7,6 +7,7 @@ import { initialShields, SHIELD_PRICE, consumeShield, type ShieldsState } from '
 import { currentOverallStreak, habitStreak, overallStreak, streakMultiplier } from './streaks'
 
 export const DAILY_XP_CAP = 500
+export const MAX_TARGET = 100_000
 export const ALL_DONE_BONUS = { xp: 30, coins: 5 }
 
 /** Всё состояние игры. Обычный JSON — сохраняется целиком. */
@@ -103,8 +104,8 @@ export function validateHabit(h: Habit): string | null {
   if (f.kind === 'timesPerWeek' && (!Number.isInteger(f.times) || f.times < 1 || f.times > 7)) {
     return 'От 1 до 7 раз в неделю'
   }
-  if (h.target && (!Number.isFinite(h.target.amount) || h.target.amount <= 0)) {
-    return 'Цель должна быть больше нуля'
+  if (h.target && (!Number.isInteger(h.target.amount) || h.target.amount < 1 || h.target.amount > MAX_TARGET)) {
+    return `Цель — целое число от 1 до ${MAX_TARGET.toLocaleString('ru-RU')}`
   }
   return null
 }
@@ -251,7 +252,6 @@ export class GameEngine {
       )
       this.state.lastProcessedDay = day
     }
-    this.checkDayBonus(today)
     this.updateBestStreak(now)
     return saved
   }
@@ -284,8 +284,8 @@ export class GameEngine {
   }
 
   /**
-   * Изменить привычку. Если передать `now`, сразу проверяется бонус дня
-   * (например, архивировали последнюю невыполненную привычку).
+   * Изменить привычку. Интерфейс всегда передаёт `now`: прошедшие дни закрываются до изменения.
+   * Бонус дня выдаётся только за отметку, а не за архивирование невыполненного.
    */
   updateHabit(habit: Habit, now?: Date) {
     const error = validateHabit(habit)
@@ -294,7 +294,7 @@ export class GameEngine {
     if (now) this.startOfDay(now)
     const i = this.state.habits.findIndex((h) => h.id === habit.id)
     if (i >= 0) this.state.habits[i] = habit
-    if (now) this.checkDayBonus(dayOf(now))
+
   }
 
   /** Отметить привычку выполненной сегодня. */

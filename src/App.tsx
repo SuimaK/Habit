@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { TabBar, type Tab } from './components/TabBar'
+import { LIBRARY } from './library'
 import { HabitsManager } from './screens/HabitsManager'
 import { Onboarding } from './screens/Onboarding'
 import { Today } from './screens/Today'
@@ -26,6 +27,10 @@ export default function App() {
             skipHabits={s.habits.some((h) => !h.archived)}
             onDone={(profile, habits) =>
               act((e, at) => {
+                // Привычкам из пробной версии подставляем время суток из библиотеки по названию.
+                for (const h of e.state.habits) {
+                  h.timeOfDay ??= LIBRARY.find((t) => t.name === h.name)?.timeOfDay
+                }
                 habits.forEach((h) => e.addHabit(h, at))
                 e.state.profile = profile
               })

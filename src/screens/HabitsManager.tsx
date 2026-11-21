@@ -39,8 +39,8 @@ export function HabitsManager({ habits, onAdd, onUpdate, onClose }: Props) {
           else onUpdate(h)
           setView({ kind: 'list' })
         }}
-        onArchive={(archived) => {
-          onUpdate({ ...view.habit, archived })
+        onArchive={(h) => {
+          onUpdate(h)
           setView({ kind: 'list' })
         }}
       />
@@ -123,7 +123,7 @@ export function HabitsManager({ habits, onAdd, onUpdate, onClose }: Props) {
         </button>
         <h2>Мои привычки</h2>
         <button type="button" className="btn primary small" onClick={() => setView({ kind: 'library' })}>
-          + Добавить
+          Добавить
         </button>
       </header>
       <section className="card list-card">

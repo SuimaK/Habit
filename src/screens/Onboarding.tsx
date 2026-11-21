@@ -51,7 +51,15 @@ export function Onboarding({ onDone, skipHabits = false }: Props) {
 
   return (
     <div className="onboarding">
-      <div className="ob-progress" aria-label={`Шаг ${step + 1} из ${STEPS.length}`}>
+      <div
+        className="ob-progress"
+        role="progressbar"
+        aria-label="Шаги настройки"
+        aria-valuemin={1}
+        aria-valuemax={STEPS.length}
+        aria-valuenow={step + 1}
+        aria-valuetext={`Шаг ${step + 1} из ${STEPS.length}`}
+      >
         {STEPS.map((s, i) => (
           <span key={s} className={i <= step ? 'on' : ''} />
         ))}
@@ -238,21 +246,26 @@ function Single<T extends string>(props: {
   )
 }
 
-export function Swatches(props: { label: string; colors: string[]; value: string; onChange: (c: string) => void }) {
+export function Swatches(props: {
+  label: string
+  colors: { color: string; name: string }[]
+  value: string
+  onChange: (c: string) => void
+}) {
   return (
     <div className="swatches" role="radiogroup" aria-label={props.label}>
       <span className="muted">{props.label}</span>
       <div>
-        {props.colors.map((c, i) => (
+        {props.colors.map(({ color, name }) => (
           <button
             type="button"
-            key={c}
+            key={color}
             role="radio"
-            aria-checked={props.value === c}
-            aria-label={`${props.label}, вариант ${i + 1}`}
-            className={`swatch ${props.value === c ? 'on' : ''}`}
-            style={{ background: c }}
-            onClick={() => props.onChange(c)}
+            aria-checked={props.value === color}
+            aria-label={`${props.label}: ${name}`}
+            className={`swatch ${props.value === color ? 'on' : ''}`}
+            style={{ background: color }}
+            onClick={() => props.onChange(color)}
           />
         ))}
       </div>

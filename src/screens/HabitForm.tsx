@@ -16,7 +16,8 @@ interface Props {
   isNew: boolean
   onSave: (h: Habit) => void
   onCancel: () => void
-  onArchive?: (archived: boolean) => void
+  /** Убрать в архив или вернуть — с учётом несохранённых правок. */
+  onArchive?: (h: Habit) => void
 }
 
 const UNIT_LABEL: Record<TargetUnit, string> = { times: 'раз', minutes: 'минут', portions: 'порций' }
@@ -42,6 +43,7 @@ export function HabitForm({ habit, isNew, onSave, onCancel, onArchive }: Props) 
   return (
     <form
       className="sheet"
+      noValidate
       onSubmit={(e) => {
         e.preventDefault()
         save()
@@ -64,9 +66,9 @@ export function HabitForm({ habit, isNew, onSave, onCancel, onArchive }: Props) 
 
       <fieldset className="field">
         <legend>Направление</legend>
-        <div className="seg">
+        <div className="seg" role="radiogroup">
           {(['nutrition', 'workout', 'meditation'] as Category[]).map((c) => (
-            <button type="button" key={c} aria-pressed={h.category === c} className={h.category === c ? 'on' : ''} onClick={() => set({ category: c })}>
+            <button type="button" key={c} role="radio" aria-checked={h.category === c} className={h.category === c ? 'on' : ''} onClick={() => set({ category: c })}>
               {CATEGORY_LABEL[c]}
             </button>
           ))}
@@ -75,9 +77,9 @@ export function HabitForm({ habit, isNew, onSave, onCancel, onArchive }: Props) 
 
       <fieldset className="field">
         <legend>Сложность</legend>
-        <div className="seg">
+        <div className="seg" role="radiogroup">
           {(['easy', 'medium', 'hard'] as Difficulty[]).map((d) => (
-            <button type="button" key={d} aria-pressed={h.difficulty === d} className={h.difficulty === d ? 'on' : ''} onClick={() => set({ difficulty: d })}>
+            <button type="button" key={d} role="radio" aria-checked={h.difficulty === d} className={h.difficulty === d ? 'on' : ''} onClick={() => set({ difficulty: d })}>
               {DIFFICULTY_LABEL[d]}
               <small>
                 {DIFFICULTY_REWARD[d].xp} XP · {DIFFICULTY_REWARD[d].coins} 🪙
@@ -89,15 +91,15 @@ export function HabitForm({ habit, isNew, onSave, onCancel, onArchive }: Props) 
 
       <fieldset className="field">
         <legend>Как часто</legend>
-        <div className="seg">
-          <button type="button" aria-pressed={f.kind === 'daily'} className={f.kind === 'daily' ? 'on' : ''} onClick={() => setFreq({ kind: 'daily' })}>
+        <div className="seg" role="radiogroup">
+          <button type="button" role="radio" aria-checked={f.kind === 'daily'} className={f.kind === 'daily' ? 'on' : ''} onClick={() => setFreq({ kind: 'daily' })}>
             Каждый день
           </button>
-          <button type="button" aria-pressed={f.kind === 'weekdays'} className={f.kind === 'weekdays' ? 'on' : ''}
+          <button type="button" role="radio" aria-checked={f.kind === 'weekdays'} className={f.kind === 'weekdays' ? 'on' : ''}
             onClick={() => setFreq({ kind: 'weekdays', days: f.kind === 'weekdays' ? f.days : [1, 3, 5] })}>
             По дням
           </button>
-          <button type="button" aria-pressed={f.kind === 'timesPerWeek'} className={f.kind === 'timesPerWeek' ? 'on' : ''}
+          <button type="button" role="radio" aria-checked={f.kind === 'timesPerWeek'} className={f.kind === 'timesPerWeek' ? 'on' : ''}
             onClick={() => setFreq({ kind: 'timesPerWeek', times: f.kind === 'timesPerWeek' ? f.times : 3 })}>
             N раз в неделю
           </button>
@@ -127,9 +129,9 @@ export function HabitForm({ habit, isNew, onSave, onCancel, onArchive }: Props) 
 
       <fieldset className="field">
         <legend>Когда</legend>
-        <div className="seg">
+        <div className="seg" role="radiogroup">
           {(['morning', 'day', 'evening', 'any'] as TimeOfDay[]).map((t) => (
-            <button type="button" key={t} aria-pressed={(h.timeOfDay ?? 'any') === t} className={(h.timeOfDay ?? 'any') === t ? 'on' : ''} onClick={() => set({ timeOfDay: t })}>
+            <button type="button" key={t} role="radio" aria-checked={(h.timeOfDay ?? 'any') === t} className={(h.timeOfDay ?? 'any') === t ? 'on' : ''} onClick={() => set({ timeOfDay: t })}>
               {TIME_LABEL[t]}
             </button>
           ))}
@@ -143,7 +145,8 @@ export function HabitForm({ habit, isNew, onSave, onCancel, onArchive }: Props) 
             type="number"
             inputMode="numeric"
             min={1}
-            aria-label="Количество"
+            step={1}
+            aria-label={`Цель, ${h.target ? UNIT_LABEL[h.target.unit] : 'количество'}`}
             value={h.target?.amount ?? ''}
             placeholder="—"
             onChange={(e) => {
@@ -151,9 +154,9 @@ export function HabitForm({ habit, isNew, onSave, onCancel, onArchive }: Props) 
               set({ target: v === '' ? undefined : { amount: Number(v), unit: h.target?.unit ?? 'minutes' } })
             }}
           />
-          <div className="seg">
+          <div className="seg" role="radiogroup">
             {(['minutes', 'times', 'portions'] as TargetUnit[]).map((u) => (
-              <button type="button" key={u} aria-pressed={h.target?.unit === u} className={h.target?.unit === u ? 'on' : ''}
+              <button type="button" key={u} role="radio" aria-checked={h.target?.unit === u} className={h.target?.unit === u ? 'on' : ''}
                 onClick={() => set({ target: { amount: h.target?.amount ?? 1, unit: u } })}>
                 {UNIT_LABEL[u]}
               </button>
@@ -169,7 +172,16 @@ export function HabitForm({ habit, isNew, onSave, onCancel, onArchive }: Props) 
       )}
 
       {!isNew && onArchive && (
-        <button type="button" className="btn ghost wide" onClick={() => onArchive(!h.archived)}>
+        <button
+          type="button"
+          className="btn ghost wide"
+          onClick={() => {
+            const next: Habit = { ...h, name: h.name.trim(), archived: !h.archived }
+            const err = validateHabit(next)
+            if (err) return setError(err)
+            onArchive(next)
+          }}
+        >
           {h.archived ? 'Вернуть из архива' : 'Убрать в архив'}
         </button>
       )}
