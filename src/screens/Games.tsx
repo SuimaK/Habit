@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
-import { LIFE_PACKS, dayOf, nextBoundary, type GameEngine, type LifePack } from '../core'
+import { LIFE_PACKS, dayOf, nextBoundary, type GameEngine, type GameId, type LifePack } from '../core'
 import { plural } from '../labels'
 
 interface Props {
   engine: GameEngine
   now: Date
   act: <T>(fn: (e: GameEngine, now: Date) => T) => T
-  onPlay: () => void
+  onPlay: (game: GameId) => void
 }
 
 export const BLOCK_TEXT = {
@@ -75,18 +75,21 @@ export function Games({ engine, now, act, onPlay }: Props) {
               «Перекус»
               <small>Змейка · рекорд {g.records.snack ?? 0}</small>
             </span>
-            <button type="button" className="btn primary small" disabled={!!block} onClick={onPlay} aria-label="Играть в «Перекус», стоит 1 жизнь" aria-describedby={block ? 'game-block' : undefined}>
+            <button type="button" className="btn primary small" disabled={!!block} onClick={() => onPlay('snack')} aria-label="Играть в «Перекус», стоит 1 жизнь" aria-describedby={block ? 'game-block' : undefined}>
               Играть ♥1
             </button>
           </li>
-          <li className="game-row soon-row">
+          <li className="game-row">
             <span className="game-icon" aria-hidden>
               🫧
             </span>
             <span className="row-text">
               «Шарики»
-              <small>Появится в следующей версии</small>
+              <small>Стрелялка · рекорд {g.records.bubbles ?? 0}</small>
             </span>
+            <button type="button" className="btn primary small" disabled={!!block} onClick={() => onPlay('bubbles')} aria-label="Играть в «Шарики», стоит 1 жизнь" aria-describedby={block ? 'game-block' : undefined}>
+              Играть ♥1
+            </button>
           </li>
           <li className="game-row soon-row">
             <span className="game-icon" aria-hidden>

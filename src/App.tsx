@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
-import { dayOf, needs, type GameEngine, type Habit, type Profile } from './core'
+import { dayOf, needs, type GameEngine, type GameId, type Habit, type Profile } from './core'
 import { TabBar, type Tab } from './components/TabBar'
 import { LIBRARY } from './library'
 import { HabitsManager } from './screens/HabitsManager'
 import { Games } from './screens/Games'
 import { Home } from './screens/Home'
 import { SnakeScreen } from './screens/SnakeScreen'
+import { BubblesScreen } from './screens/BubblesScreen'
 import { Settings } from './screens/Settings'
 import { Onboarding } from './screens/Onboarding'
 import { ProgressScreen } from './screens/ProgressScreen'
@@ -41,7 +42,7 @@ export default function App() {
   const [tab, setTab] = useState<Tab>('today')
   const [managing, setManaging] = useState(false)
   const [settings, setSettings] = useState(false)
-  const [playing, setPlaying] = useState(false)
+  const [playing, setPlaying] = useState<GameId | null>(null)
   /** Короткое сообщение поверх любого экрана (живой регион всегда в DOM). */
   const [flash, setFlash] = useState<string | null>(null)
   useEffect(() => {
@@ -178,7 +179,11 @@ export default function App() {
     return (
       <div className="app">
         <main>
-          <SnakeScreen engine={engine} act={act} onExit={() => setPlaying(false)} />
+          {playing === 'bubbles' ? (
+            <BubblesScreen engine={engine} act={act} onExit={() => setPlaying(null)} />
+          ) : (
+            <SnakeScreen engine={engine} act={act} onExit={() => setPlaying(null)} />
+          )}
         </main>
       </div>
     )
@@ -246,8 +251,8 @@ export default function App() {
             engine={engine}
             now={now}
             act={act}
-            onPlay={() => {
-              if (act((e, at) => e.startGame(at))) setPlaying(true)
+            onPlay={(game) => {
+              if (act((e, at) => e.startGame(at))) setPlaying(game)
             }}
           />
         )}

@@ -493,3 +493,13 @@ main {
 .snake-pad .up { grid-area: up; } .snake-pad .left { grid-area: left; } .snake-pad .right { grid-area: right; } .snake-pad .down { grid-area: down; }
 .settings-note { margin: -4px 0 0; font-size: 13px; }
 .settings-h { margin: 0; font-size: 17px; }
+
+/* «Шарики» */
+:root { --aim: rgba(60, 70, 60, 0.45); --danger-line: #c9796a; }
+@media (prefers-color-scheme: dark) { :root { --aim: rgba(220, 230, 220, 0.45); --danger-line: #d98f7f; } }
+.bubbles-board { aspect-ratio: 19 / 25.785; width: min(100%, 440px, calc(60dvh * 0.737)); }
+.bubbles-hint { margin: -4px 0 0; padding: 0 4px; font-size: 14px; }
+.bubbles-pad { display: grid; grid-template-columns: 56px 1fr 56px 56px; gap: 8px; width: min(100%, 440px); margin: 0 auto; }
+.bubbles-pad button { height: 52px; border-radius: 16px; border: 1.5px solid var(--line); background: var(--card); color: var(--accent-text); font-size: 20px; font-weight: 700; cursor: pointer; touch-action: manipulation; }
+.bubbles-pad .fire { font-size: 17px; }
+.bubbles-pad button:disabled { opacity: 0.5; cursor: default; }
