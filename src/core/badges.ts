@@ -12,6 +12,8 @@ export interface BadgeContext {
   bestHabitStreak: number
   perfectDays: number
   questsClaimed: number
+  /** Рекорды мини-игр. */
+  gameRecords: Partial<Record<string, number>>
 }
 
 export interface BadgeDef {
@@ -28,7 +30,7 @@ const countCategory = (c: BadgeContext, cat: Habit['category']) => {
   return c.completions.filter((x) => ids.has(x.habitId)).length
 }
 
-/** 10 бейджей первой версии (ТЗ 3.5). */
+/** Бейджи первой версии (ТЗ 3.5) и бейдж за рекорд в «Перекусе» (ТЗ 3.6). */
 export const BADGES: BadgeDef[] = [
   { id: 'first', title: 'Первый шаг', description: 'Первая отмеченная привычка', rarity: 'common', icon: '🌱', earned: (c) => c.completions.length > 0 },
   { id: 'perfect', title: 'Идеальный день', description: 'Все привычки дня выполнены', rarity: 'common', icon: '⭐', earned: (c) => c.perfectDays >= 1 },
@@ -49,6 +51,7 @@ export const BADGES: BadgeDef[] = [
   { id: 'quests10', title: 'Искатель приключений', description: '10 завершённых квестов', rarity: 'rare', icon: '🗺️', earned: (c) => c.questsClaimed >= 10 },
   { id: 'level10', title: 'Адепт', description: 'Достигнут 10-й уровень', rarity: 'rare', icon: '🏅', earned: (c) => c.level >= 10 },
   { id: 'month', title: 'Месяц в ритме', description: 'Общая серия 30 дней', rarity: 'rare', icon: '🔥', earned: (c) => c.bestStreak >= 30 },
+  { id: 'snack100', title: 'Гурман', description: '100 очков в «Перекусе»', rarity: 'rare', icon: '🥕', earned: (c) => (c.gameRecords.snack ?? 0) >= 100 },
   { id: 'habit30', title: 'Железная воля', description: 'Одна привычка 30 раз подряд по плану', rarity: 'legendary', icon: '💎', earned: (c) => c.bestHabitStreak >= 30 },
 ]
 

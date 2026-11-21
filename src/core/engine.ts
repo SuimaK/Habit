@@ -31,6 +31,7 @@ import {
   type CustomQuest,
   type CustomQuestError,
 } from './customQuests'
+import { DEFAULT_GAME_LIMIT_MIN, initialGames, playLeftSec, type GameBlock, type GameId, type GamesState } from './games'
 import { REWARD_MAX_PRICE, REWARD_NAME_MAX, validateReward, type PersonalReward, type Redemption, type RewardError } from './rewards'
 import { initialShields, SHIELD_PRICE, consumeShield, type ShieldsState } from './shields'
 import { currentOverallStreak, habitStreak, overallStreak, streakMultiplier } from './streaks'
@@ -75,6 +76,8 @@ export interface GameState {
   redemptions: Redemption[]
   /** Свои квесты. */
   customQuests: CustomQuest[]
+  /** Мини-игры: рекорды, время, лимит. */
+  games: GamesState
 }
 
 export const initialState = (): GameState => ({
@@ -100,6 +103,7 @@ export const initialState = (): GameState => ({
   rewards: [],
   redemptions: [],
   customQuests: [],
+  games: initialGames(),
 })
 
 /** Загрузить сохранённое состояние: недостающие поля (из старых версий) берутся по умолчанию. */
@@ -172,6 +176,17 @@ export function loadState(raw: unknown): GameState {
       )
       .filter((x, i, all) => all.findIndex((y) => y.id === x.id) === i)
       .map((x) => ({ ...x, price: Math.round(x.price) })),
+    games: (() => {
+      const g = obj<Partial<GamesState>>(r.games, {})
+      const records: GamesState['records'] = {}
+      for (const [k, v] of Object.entries(obj<Record<string, unknown>>(g.records, {})))
+        if ((k === 'snack' || k === 'bubbles' || k === 'blocks') && typeof v === 'number' && Number.isFinite(v) && v > 0) records[k] = Math.round(v)
+      const playedByDay: Record<Day, number> = {}
+      for (const [k, v] of Object.entries(obj<Record<string, unknown>>(g.playedByDay, {})))
+        if (isDay(k) && typeof v === 'number' && Number.isFinite(v) && v > 0) playedByDay[k] = v
+      const limit = num(g.limitMin, DEFAULT_GAME_LIMIT_MIN)
+      return { records, playedByDay, limitMin: limit >= 0 && limit <= 600 ? Math.round(limit) : DEFAULT_GAME_LIMIT_MIN }
+    })(),
     customQuests: arr<CustomQuest>(r.customQuests, [])
       .filter((x) => x && typeof x === 'object' && typeof x.id === 'string' && typeof x.name === 'string' && x.name.trim() !== '')
       .filter((x, i, all) => all.findIndex((y) => y.id === x.id) === i)
@@ -525,6 +540,7 @@ export class GameEngine {
       bestHabitStreak: Math.max(0, ...active.map((h) => this.habitStreak(h.id, now))),
       perfectDays: Object.keys(this.state.bonusByDay).length,
       questsClaimed: this.state.quests.claimedCount,
+      gameRecords: this.state.games.records,
     }
     const earned: string[] = []
     for (const b of BADGES) {
@@ -769,11 +785,39 @@ export class GameEngine {
     return ok(undefined)
   }
 
-  /** Начать партию: обновляет жизни и списывает одну. false — жизней нет. */
+  /** Можно ли начать партию сейчас. */
+  gameBlock(now: Date): GameBlock | null {
+    if (this.state.lives.count <= 0) return 'noLives'
+    if (playLeftSec(this.state.games, dayOf(now)) <= 0) return 'limitReached'
+    return null
+  }
+
+  /** Начать партию: обновляет жизни и списывает одну. false — жизней нет или дневной лимит игры исчерпан. */
   startGame(now: Date): boolean {
     this.startOfDay(now)
-    if (this.state.lives.count <= 0) return false
+    if (this.gameBlock(now)) return false
     this.state.lives = { ...this.state.lives, count: this.state.lives.count - 1 }
     return true
+  }
+
+  /** Учесть время игры (секунды) за день. */
+  addPlayTime(seconds: number, now: Date) {
+    if (!Number.isFinite(seconds) || seconds <= 0) return
+    const day = dayOf(now)
+    const g = this.state.games
+    g.playedByDay = { ...g.playedByDay, [day]: (g.playedByDay[day] ?? 0) + Math.min(seconds, 3 * 3600) }
+  }
+
+  /** Итог партии: рекорд и бейджи. Монеты за игры не даются (ТЗ 3.6). */
+  finishGame(game: GameId, score: number, now: Date): { newRecord: boolean; record: number; newBadges: string[] } {
+    const s = Number.isFinite(score) ? Math.max(0, Math.round(score)) : 0
+    const prev = this.state.games.records[game] ?? 0
+    const newRecord = s > prev
+    if (newRecord) this.state.games.records = { ...this.state.games.records, [game]: s }
+    return { newRecord, record: Math.max(prev, s), newBadges: this.checkBadges(now) }
+  }
+
+  setGameLimit(minutes: number) {
+    if (Number.isInteger(minutes) && minutes >= 0 && minutes <= 600) this.state.games.limitMin = minutes
   }
 }

@@ -3,7 +3,9 @@ import { dayOf, needs, type GameEngine, type Habit, type Profile } from './core'
 import { TabBar, type Tab } from './components/TabBar'
 import { LIBRARY } from './library'
 import { HabitsManager } from './screens/HabitsManager'
+import { Games } from './screens/Games'
 import { Home } from './screens/Home'
+import { SnakeScreen } from './screens/SnakeScreen'
 import { Settings } from './screens/Settings'
 import { Onboarding } from './screens/Onboarding'
 import { ProgressScreen } from './screens/ProgressScreen'
@@ -14,7 +16,6 @@ import { Today } from './screens/Today'
 import { readTimer, writeTimer, type TimerData } from './timerStore'
 import { useGame } from './useGame'
 
-const SOON = 'Мини-игры появятся в блоке 7'
 
 interface TimerOpen {
   habitId: string
@@ -40,6 +41,7 @@ export default function App() {
   const [tab, setTab] = useState<Tab>('today')
   const [managing, setManaging] = useState(false)
   const [settings, setSettings] = useState(false)
+  const [playing, setPlaying] = useState(false)
   const [settingsDraft, setSettingsDraft] = useState<Profile | null>(null)
   const [timer, setTimer] = useState<TimerOpen | null>(() => restoreTimer(engine))
   const [reward, setReward] = useState<(SessionResult & { day: string }) | null>(null)
@@ -165,6 +167,16 @@ export default function App() {
     )
   }
 
+  if (playing && s.profile) {
+    return (
+      <div className="app">
+        <main>
+          <SnakeScreen engine={engine} act={act} onExit={() => setPlaying(false)} />
+        </main>
+      </div>
+    )
+  }
+
   if (settings && s.profile) {
     return (
       <div className="app">
@@ -177,6 +189,8 @@ export default function App() {
               })
             }
             onHabits={() => setManaging(true)}
+            gameLimit={s.games.limitMin}
+            onGameLimit={(m) => act((e) => e.setGameLimit(m))}
             draft={settingsDraft}
             onDraft={setSettingsDraft}
             onClose={() => {
@@ -210,9 +224,14 @@ export default function App() {
         ) : tab === 'home' ? (
           <Home engine={engine} now={now} act={act} onSettings={() => setSettings(true)} />
         ) : (
-          <div className="screen soon">
-            <p>{SOON}</p>
-          </div>
+          <Games
+            engine={engine}
+            now={now}
+            act={act}
+            onPlay={() => {
+              if (act((e, at) => e.startGame(at))) setPlaying(true)
+            }}
+          />
         )}
       </main>
       <div inert={!!reward}>

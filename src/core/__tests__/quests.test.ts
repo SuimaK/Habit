@@ -211,9 +211,9 @@ describe('недельный квест и сундук', () => {
 })
 
 describe('бейджи', () => {
-  it('ровно 10, уникальные id', () => {
-    expect(BADGES).toHaveLength(10)
-    expect(new Set(BADGES.map((b) => b.id)).size).toBe(10)
+  it('10 первой версии и «Гурман», уникальные id', () => {
+    expect(BADGES).toHaveLength(11)
+    expect(new Set(BADGES.map((b) => b.id)).size).toBe(11)
   })
 
   it('первый шаг и идеальный день выдаются при отметке и один раз', () => {

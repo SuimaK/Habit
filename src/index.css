@@ -465,3 +465,30 @@ main {
 .custom-late { display: flex; align-items: center; gap: 10px; justify-content: space-between; background: color-mix(in srgb, var(--good) 16%, var(--card)); border-radius: 12px; padding: 8px 8px 8px 12px; }
 .custom-limit { margin: 0; font-size: 13px; }
 @media (max-width: 360px) { .custom-quest { padding-left: 8px; padding-right: 8px; } .custom-days { gap: 3px; } }
+
+/* игры */
+:root { --board-a: #eef3e2; --board-b: #e3ebd2; --snake: #5f9f63; --snake-head: #3f7f45; }
+@media (prefers-color-scheme: dark) { :root { --board-a: #2a2f2a; --board-b: #262b26; --snake: #77b67a; --snake-head: #9bd49e; } }
+.games-head { display: flex; align-items: center; justify-content: space-between; }
+.game-row { display: flex; align-items: center; gap: 12px; padding: 10px 6px 10px 10px; min-height: 64px; }
+.game-icon { font-size: 28px; width: 36px; text-align: center; }
+.soon-row .row-text { color: var(--muted); }
+.game-block, .game-info { margin: 6px 12px 10px; font-size: 13px; }
+.shop-pad { padding-left: 10px; }
+.snake-screen { gap: 10px; }
+.snake-score { display: flex; justify-content: space-between; font-weight: 700; font-variant-numeric: tabular-nums; padding: 0 4px; }
+.snake-board { position: relative; width: min(100%, 420px, 58dvh); margin: 0 auto; aspect-ratio: 1; }
+.snake-canvas { width: 100%; height: 100%; border-radius: 16px; touch-action: none; display: block; box-shadow: 0 0 0 1.5px var(--line); }
+.snake-overlay {
+  position: absolute; inset: 0; border-radius: 16px; padding: 18px; text-align: center;
+  display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 10px;
+  background: color-mix(in srgb, var(--card) 88%, transparent);
+}
+.snake-overlay p { margin: 0; }
+.snake-overlay h3 { margin: 0; font-size: 22px; color: var(--accent-text); }
+.snake-overlay .row-btns { width: 100%; }
+.snake-final { font-size: 28px; font-weight: 800; }
+.snake-pad { display: grid; grid-template-columns: repeat(3, 64px); grid-template-rows: repeat(2, 56px); gap: 8px; justify-content: center; grid-template-areas: ". up ." "left down right"; }
+.snake-pad button { border-radius: 16px; border: 1.5px solid var(--line); background: var(--card); color: var(--accent-text); font-size: 20px; cursor: pointer; touch-action: manipulation; }
+.snake-pad .up { grid-area: up; } .snake-pad .left { grid-area: left; } .snake-pad .right { grid-area: right; } .snake-pad .down { grid-area: down; }
+.settings-note { margin: -4px 0 0; font-size: 13px; }

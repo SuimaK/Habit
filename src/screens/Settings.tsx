@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import type { Profile } from '../core'
+import { GAME_LIMIT_OPTIONS, type Profile } from '../core'
 import { Room } from '../components/Room'
 import { HAIRS, SHIRTS, SKINS } from '../labels'
 import { Swatches } from './Onboarding'
@@ -12,10 +12,12 @@ interface Props {
   /** Несохранённые правки — хранятся снаружи, чтобы пережить переход к привычкам. */
   draft: Profile | null
   onDraft: (p: Profile) => void
+  gameLimit: number
+  onGameLimit: (minutes: number) => void
 }
 
 /** Настройки: имя и внешний вид персонажа, переход к привычкам. */
-export function Settings({ profile, onSave, onHabits, onClose, draft, onDraft }: Props) {
+export function Settings({ profile, onSave, onHabits, onClose, draft, onDraft, gameLimit, onGameLimit }: Props) {
   const start = draft ?? profile
   const [name, setNameState] = useState(start.name)
   const [look, setLookState] = useState({ skin: start.skin, hair: start.hair, shirt: start.shirt })
@@ -96,7 +98,27 @@ export function Settings({ profile, onSave, onHabits, onClose, draft, onDraft }:
           </li>
         </ul>
       </section>
-      <p className="muted settings-later">Лимит игр и резервная копия появятся в следующих блоках.</p>
+      <section className="card settings-card">
+        <fieldset className="field">
+          <legend>Время игр в день</legend>
+          <div className="seg" role="radiogroup" aria-label="Время игр в день">
+            {GAME_LIMIT_OPTIONS.map((m) => (
+              <button
+                type="button"
+                key={m}
+                role="radio"
+                aria-checked={gameLimit === m}
+                className={gameLimit === m ? 'on' : ''}
+                onClick={() => onGameLimit(m)}
+              >
+                {m ? `${m} мин` : 'Без лимита'}
+              </button>
+            ))}
+          </div>
+        </fieldset>
+        <p className="muted settings-note">Меняется сразу, без кнопки «Сохранить».</p>
+      </section>
+      <p className="muted settings-later">Резервная копия появится в следующем блоке.</p>
     </div>
   )
 }
