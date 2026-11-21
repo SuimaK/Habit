@@ -11,13 +11,13 @@ const SOON: Record<Exclude<Tab, 'today'>, string> = {
 }
 
 export default function App() {
-  const { engine, now, act } = useGame()
+  const { engine, now, act, storageOk } = useGame()
   const [tab, setTab] = useState<Tab>('today')
   return (
     <div className="app">
       <main>
         {tab === 'today' ? (
-          <Today engine={engine} now={now} act={act} />
+          <Today engine={engine} now={now} act={act} storageOk={storageOk} />
         ) : (
           <div className="screen soon">
             <p>{SOON[tab]}</p>

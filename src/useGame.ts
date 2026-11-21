@@ -1,46 +1,54 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { GameEngine } from './core'
 import { starterHabits } from './seed'
 import { readState, writeState } from './storage'
 
-function boot(now: Date): GameEngine {
-  const saved = readState()
-  const engine = new GameEngine(saved ?? undefined)
-  if (!saved) starterHabits().forEach((h) => engine.addHabit(h, now))
+function boot(now: Date): { engine: GameEngine; saved: boolean } {
+  const stored = readState()
+  const engine = new GameEngine(stored ?? undefined)
+  if (!stored) starterHabits().forEach((h) => engine.addHabit(h, now))
   engine.startOfDay(now)
-  writeState(engine.state)
-  return engine
+  return { engine, saved: writeState(engine.state) }
 }
 
 /**
- * Состояние игры для интерфейса. Каждое действие работает с копией движка,
- * сохраняет результат и перерисовывает экран.
+ * Состояние игры для интерфейса. Каждое действие работает с копией движка
+ * и получает текущее время, сохраняет результат и перерисовывает экран.
  */
 export function useGame() {
-  const [engine, setEngine] = useState(() => boot(new Date()))
+  const [initial] = useState(() => boot(new Date()))
+  const [engine, setEngine] = useState(initial.engine)
+  /** Удалось ли сохранить на устройстве. Если нет — прогресс пропадёт после закрытия. */
+  const [storageOk, setStorageOk] = useState(initial.saved)
   /** Текущее время — обновляется раз в минуту и при возврате в приложение, чтобы сменился день. */
   const [now, setNow] = useState(() => new Date())
+  const engineRef = useRef(engine)
 
-  const act = useCallback(<T>(fn: (e: GameEngine, now: Date) => T): T => {
-    const at = new Date()
-    const next = engine.clone()
-    const result = fn(next, at)
-    writeState(next.state)
+  const commit = useCallback((next: GameEngine, at: Date) => {
+    engineRef.current = next
+    setStorageOk(writeState(next.state))
     setEngine(next)
     setNow(at)
-    return result
-  }, [engine])
+  }, [])
+
+  const act = useCallback(
+    <T>(fn: (e: GameEngine, now: Date) => T): T => {
+      const at = new Date()
+      const next = engineRef.current.clone()
+      next.startOfDay(at)
+      const result = fn(next, at)
+      commit(next, at)
+      return result
+    },
+    [commit],
+  )
 
   useEffect(() => {
     const tick = () => {
       const at = new Date()
-      setNow(at)
-      setEngine((e) => {
-        const next = e.clone()
-        next.startOfDay(at)
-        writeState(next.state)
-        return next
-      })
+      const next = engineRef.current.clone()
+      next.startOfDay(at)
+      commit(next, at)
     }
     const onVisible = () => document.visibilityState === 'visible' && tick()
     document.addEventListener('visibilitychange', onVisible)
@@ -49,7 +57,7 @@ export function useGame() {
       document.removeEventListener('visibilitychange', onVisible)
       clearInterval(timer)
     }
-  }, [])
+  }, [commit])
 
-  return { engine, now, act }
+  return { engine, now, act, storageOk }
 }

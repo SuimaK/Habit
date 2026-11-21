@@ -6,24 +6,22 @@ const KEY = 'habit-game/state/v1'
 export function readState(): GameState | null {
   try {
     const raw = localStorage.getItem(KEY)
-    return raw ? loadState(JSON.parse(raw)) : null
+    if (!raw) return null
+    const parsed: unknown = JSON.parse(raw)
+    // Без списка привычек сохранение считаем пустым или повреждённым — начинаем заново.
+    if (!parsed || typeof parsed !== 'object' || !Array.isArray((parsed as { habits?: unknown }).habits)) return null
+    return loadState(parsed)
   } catch {
     return null
   }
 }
 
-export function writeState(state: GameState): void {
+/** Возвращает false, если сохранить не удалось (приватный режим, нет места). */
+export function writeState(state: GameState): boolean {
   try {
     localStorage.setItem(KEY, JSON.stringify(state))
+    return true
   } catch {
-    // Хранилище недоступно (приватный режим) — работаем без сохранения.
-  }
-}
-
-export function clearState(): void {
-  try {
-    localStorage.removeItem(KEY)
-  } catch {
-    /* ничего */
+    return false
   }
 }

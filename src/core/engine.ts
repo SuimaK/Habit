@@ -56,16 +56,33 @@ export const initialState = (): GameState => ({
 /** Загрузить сохранённое состояние: недостающие поля (из старых версий) берутся по умолчанию. */
 export function loadState(raw: unknown): GameState {
   const base = initialState()
-  if (!raw || typeof raw !== 'object') return base
-  const r = raw as Partial<GameState>
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return base
+  const r = raw as Partial<Record<keyof GameState, unknown>>
+  const arr = <T>(v: unknown, d: T[]): T[] => (Array.isArray(v) ? (v as T[]) : d)
+  const num = (v: unknown, d: number) => (typeof v === 'number' && Number.isFinite(v) ? v : d)
+  const obj = <T extends object>(v: unknown, d: T): T =>
+    v && typeof v === 'object' && !Array.isArray(v) ? { ...d, ...(v as Partial<T>) } : d
+  const day = (v: unknown) => (typeof v === 'string' ? v : null)
   return {
-    ...base,
-    ...r,
-    lives: { ...base.lives, ...r.lives },
-    shields: { ...base.shields, ...r.shields },
-    // В старых сохранениях был только bestStreak.
-    bestPastStreak: r.bestPastStreak ?? r.bestStreak ?? 0,
     version: 1,
+    habits: arr<Habit>(r.habits, []).filter((h) => h && typeof h === 'object' && typeof h.id === 'string'),
+    completions: arr<Completion>(r.completions, []).filter((c) => c && typeof c === 'object'),
+    totalXp: num(r.totalXp, 0),
+    coins: Math.max(0, num(r.coins, 0)),
+    xpByDay: obj(r.xpByDay, {}),
+    bonusByDay: obj(r.bonusByDay, {}),
+    lives: obj(r.lives, base.lives),
+    shields: {
+      purchased: num(obj<Partial<ShieldsState>>(r.shields, {}).purchased, 0),
+      freeUsedWeeks: arr<Day>(obj<Partial<ShieldsState>>(r.shields, {}).freeUsedWeeks, []),
+    },
+    shieldedDays: arr<Day>(r.shieldedDays, []),
+    lastProcessedDay: day(r.lastProcessedDay),
+    startDay: day(r.startDay),
+    dayResults: obj(r.dayResults, {}),
+    // В старых сохранениях был только bestStreak.
+    bestPastStreak: num(r.bestPastStreak, num(r.bestStreak, 0)),
+    bestStreak: num(r.bestStreak, 0),
   }
 }
 

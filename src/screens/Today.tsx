@@ -15,6 +15,7 @@ interface Props {
   engine: GameEngine
   now: Date
   act: <T>(fn: (e: GameEngine, now: Date) => T) => T
+  storageOk: boolean
 }
 
 interface Float {
@@ -29,7 +30,7 @@ const ERRORS: Partial<Record<CompletionError, string>> = {
   notScheduledToday: 'Эта привычка сегодня не запланирована',
 }
 
-export function Today({ engine, now, act }: Props) {
+export function Today({ engine, now, act, storageOk }: Props) {
   const today = dayOf(now)
   const plan = engine.plan
   const s = engine.state
@@ -47,6 +48,8 @@ export function Today({ engine, now, act }: Props) {
   const [cheering, setCheering] = useState(false)
   const [floats, setFloats] = useState<Float[]>([])
   const [toast, setToast] = useState<string | null>(null)
+  /** Постоянный live-регион для VoiceOver. */
+  const [announce, setAnnounce] = useState('')
   const floatId = useRef(0)
 
   useEffect(() => {
@@ -64,31 +67,51 @@ export function Today({ engine, now, act }: Props) {
   const mood: Mood =
     cheering || plan.result(today) === 'met' ? 'happy' : bars.some((b) => b.sad) ? 'sad' : 'calm'
 
-  function toggle(h: Habit) {
-    if (engine.isCompleted(h.id, today)) {
-      const r = act((e, at) => e.undo(h.id, at))
-      if (!r.ok) setToast(ERRORS[r.error] ?? 'Не получилось снять отметку')
-      return
-    }
-    const r = act((e, at) => e.complete(h.id, at))
-    if (!r.ok) {
-      setToast(ERRORS[r.error] ?? 'Не получилось отметить')
-      return
-    }
-    const ev = r.value
-    const parts = [`+${ev.xp + ev.bonusXp} XP`, `+${ev.coins + ev.bonusCoins} 🪙`]
+  function addFloat(habitId: string, text: string) {
     const id = ++floatId.current
-    setFloats((f) => [...f, { id, habitId: h.id, text: parts.join('  ') }])
+    setFloats((f) => [...f, { id, habitId, text }])
     setTimeout(() => setFloats((f) => f.filter((x) => x.id !== id)), 1400)
+  }
+
+  function say(message: string | null, spoken?: string) {
+    setToast(message)
+    setAnnounce(spoken ?? message ?? '')
+  }
+
+  function toggle(h: Habit) {
+    // Отметить или снять решаем по фактическому времени тапа: день мог смениться.
+    const res = act((e, at) =>
+      e.isCompleted(h.id, dayOf(at))
+        ? { kind: 'undo' as const, xp: e.state.completions.find((c) => c.habitId === h.id && c.day === dayOf(at))?.xp ?? 0, r: e.undo(h.id, at) }
+        : { kind: 'done' as const, xp: 0, r: e.complete(h.id, at) },
+    )
+    if (res.kind === 'undo') {
+      if (!res.r.ok) return say(ERRORS[res.r.error] ?? 'Не получилось снять отметку')
+      addFloat(h.id, `−${res.xp} XP`)
+      return say(null, `Отметка снята: ${h.name}`)
+    }
+    const r = res.r
+    if (!r.ok) return say(ERRORS[r.error] ?? 'Не получилось отметить')
+    const ev = r.value
+    addFloat(h.id, `+${ev.xp} XP  +${ev.coins} 🪙`)
     setCheerKey((k) => k + 1)
     setCheering(true)
-    if (ev.levelAfter > ev.levelBefore) setToast(`Новый уровень ${ev.levelAfter}! ${titleFor(ev.levelAfter)}`)
-    else if (ev.bonusXp || ev.bonusCoins) setToast('Все привычки дня выполнены! Бонус +30 XP и +5 монет')
-    else if (ev.cappedByDailyLimit) setToast('Достигнут дневной лимит опыта (500 XP)')
+    const spoken = `${h.name}: выполнено, плюс ${ev.xp} опыта и ${ev.coins} монет.`
+    if (ev.levelAfter > ev.levelBefore) say(`Новый уровень ${ev.levelAfter}! ${titleFor(ev.levelAfter)}`, spoken)
+    else if (ev.bonusXp || ev.bonusCoins)
+      say(`Все привычки дня выполнены! Бонус +${ev.bonusXp} XP и +${ev.bonusCoins} монет`, spoken)
+    else if (ev.cappedByDailyLimit) say('Достигнут дневной лимит опыта (500 XP)', spoken)
+    else say(null, spoken)
   }
 
   return (
     <div className="screen today">
+      {!storageOk && (
+        <p className="warning" role="alert">
+          Не получается сохранить прогресс на этом устройстве — после закрытия он пропадёт. Проверь, что
+          приватный режим Safari выключен.
+        </p>
+      )}
       <section className="scene card">
         <Room mood={mood} cheerKey={cheerKey} />
         <div className="hud">
@@ -108,9 +131,8 @@ export function Today({ engine, now, act }: Props) {
               >
                 <div style={{ width: `${(b.value / b.max) * 100}%` }} />
               </div>
-              <span className="need-value">
+              <span className="need-value" aria-label={b.sad ? `${b.value} из ${b.max}, низкая` : undefined}>
                 {b.value}/{b.max}
-                {b.sad ? ' · грустит' : ''}
               </span>
             </div>
           ))}
@@ -125,10 +147,23 @@ export function Today({ engine, now, act }: Props) {
             </span>
           </div>
           <div className="stats">
-            <span title="Серия дней">🔥 {streak} дн.</span>
-            <span title="Монеты">🪙 {s.coins}</span>
-            <span title="Жизни для игр">♥ {s.lives.count}</span>
-            {multiplier > 1 && <span className="mult">XP ×{String(multiplier).replace('.', ',')}</span>}
+            <span aria-label={`Серия ${streak} дн.`}>
+              <span aria-hidden>🔥 </span>
+              {streak} дн.
+            </span>
+            <span aria-label={`Монеты: ${s.coins}`}>
+              <span aria-hidden>🪙 </span>
+              {s.coins}
+            </span>
+            <span aria-label={`Жизни для игр: ${s.lives.count}`}>
+              <span aria-hidden>♥ </span>
+              {s.lives.count}
+            </span>
+            {multiplier > 1 && (
+              <span className="mult" aria-label={`Множитель опыта ${multiplier}`}>
+                XP ×{String(multiplier).replace('.', ',')}
+              </span>
+            )}
           </div>
         </div>
       </section>
@@ -172,7 +207,7 @@ export function Today({ engine, now, act }: Props) {
                 {floats
                   .filter((f) => f.habitId === h.id)
                   .map((f) => (
-                    <span key={f.id} className="float" aria-live="polite">
+                    <span key={f.id} className="float" aria-hidden>
                       {f.text}
                     </span>
                   ))}
@@ -183,10 +218,13 @@ export function Today({ engine, now, act }: Props) {
       </section>
 
       {toast && (
-        <div className="toast" role="status">
+        <div className="toast" aria-hidden>
           {toast}
         </div>
       )}
+      <div className="sr-only" aria-live="polite">
+        {announce}
+      </div>
     </div>
   )
 }

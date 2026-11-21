@@ -14,7 +14,7 @@ export function Room({ mood, cheerKey }: Props) {
   const mouth =
     mood === 'happy' ? 'M-6 -58 Q0 -51 6 -58' : mood === 'sad' ? 'M-6 -53 Q0 -59 6 -53' : 'M-5 -55 L5 -55'
   return (
-    <svg className="room" viewBox="0 0 320 250" role="img" aria-label={`Гостиная, персонаж ${moodLabel(mood)}`}>
+    <svg className="room" viewBox="0 -14 320 266" role="img" aria-label={`Гостиная, персонаж ${moodLabel(mood)}`}>
       {/* стены */}
       <polygon points="20,180 20,60 160,-10 160,110" fill="var(--wall-left)" />
       <polygon points="160,110 160,-10 300,60 300,180" fill="var(--wall-right)" />

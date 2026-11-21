@@ -1,11 +1,12 @@
 import type { Habit } from './core'
+import { newId } from './id'
 
 /**
  * Временный стартовый набор привычек (из примеров ТЗ), пока нет онбординга и конструктора (блок 3).
  */
 export function starterHabits(): Habit[] {
   const h = (name: string, category: Habit['category'], difficulty: Habit['difficulty']): Habit => ({
-    id: crypto.randomUUID(),
+    id: newId(),
     name,
     category,
     difficulty,
