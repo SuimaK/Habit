@@ -42,6 +42,13 @@ export default function App() {
   const [managing, setManaging] = useState(false)
   const [settings, setSettings] = useState(false)
   const [playing, setPlaying] = useState(false)
+  /** Короткое сообщение поверх любого экрана (живой регион всегда в DOM). */
+  const [flash, setFlash] = useState<string | null>(null)
+  useEffect(() => {
+    if (!flash) return
+    const t = setTimeout(() => setFlash(null), 5000)
+    return () => clearTimeout(t)
+  }, [flash])
   const [settingsDraft, setSettingsDraft] = useState<Profile | null>(null)
   const [timer, setTimer] = useState<TimerOpen | null>(() => restoreTimer(engine))
   const [reward, setReward] = useState<(SessionResult & { day: string }) | null>(null)
@@ -191,11 +198,14 @@ export default function App() {
             onHabits={() => setManaging(true)}
             state={s}
             onRestore={(st) => {
-              replace(st)
+              if (!replace(st)) return false
               // Форма настроек держит старое имя — закрываем её и показываем восстановленный день.
               setSettingsDraft(null)
               setSettings(false)
               setTab('today')
+              setFlash('Готово: данные восстановлены из копии')
+              focusToday()
+              return true
             }}
             gameLimit={s.games.limitMin}
             onGameLimit={(m) => act((e) => e.setGameLimit(m))}
@@ -244,6 +254,9 @@ export default function App() {
       </main>
       <div inert={!!reward}>
         <TabBar tab={tab} onChange={setTab} />
+      </div>
+      <div className={`home-notice ${flash ? 'on' : ''}`}>
+        <span role="status">{flash ?? ''}</span>
       </div>
       {reward && (
         <RewardScreen

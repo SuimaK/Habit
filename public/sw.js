@@ -1,20 +1,24 @@
 /*
  * Работа без интернета. Страница — сначала из сети (чтобы приходили обновления), без сети — из кэша.
  * Файлы сборки (с хешем в имени) — из кэша, а при первом запросе кладутся в кэш.
+ * После каждой свежей загрузки страницы из кэша убираются файлы старых сборок.
  */
-const CACHE = 'habits-v2'
-const CORE = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png', './apple-touch-icon.png']
+const CACHE = 'habits-v3'
+const CORE = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png', './apple-touch-icon.png', './icon.svg']
+const MATCH = { ignoreVary: true }
+
+/** Файлы сборки, на которые ссылается страница. */
+const assetsOf = (html) => [...html.matchAll(/(?:src|href)="\.?\/?(assets\/[^"]+)"/g)].map((m) => new URL('./' + m[1], self.registration.scope).href)
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches
       .open(CACHE)
       .then(async (c) => {
-        await c.addAll(CORE)
-        // Сразу кладём в кэш файлы сборки, на которые ссылается страница, — офлайн работает с первого открытия.
-        const html = await (await c.match('./index.html')).text()
-        const assets = [...html.matchAll(/(?:src|href)="\.?\/?(assets\/[^"]+)"/g)].map((m) => './' + m[1])
-        await c.addAll(assets)
+        // cache: 'reload' — мимо HTTP-кэша браузера, чтобы не взять устаревшую страницу.
+        await c.addAll(CORE.map((u) => new Request(u, { cache: 'reload' })))
+        const html = await (await c.match('./index.html', MATCH)).text()
+        await c.addAll(assetsOf(html).map((u) => new Request(u, { cache: 'reload' })))
       })
       .then(() => self.skipWaiting()),
   )
@@ -29,7 +33,16 @@ self.addEventListener('activate', (event) => {
   )
 })
 
+/** Убрать из кэша файлы сборки, на которые новая страница уже не ссылается. */
+async function prune(html) {
+  const keep = new Set(assetsOf(html))
+  if (!keep.size) return
+  const c = await caches.open(CACHE)
+  for (const req of await c.keys()) if (req.url.includes('/assets/') && !keep.has(req.url)) await c.delete(req)
+}
+
 const timeout = (ms) => new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), ms))
+const fromCache = () => caches.match('./index.html', MATCH).then((r) => r || caches.match('./', MATCH))
 
 self.addEventListener('fetch', (event) => {
   const req = event.request
@@ -39,23 +52,31 @@ self.addEventListener('fetch', (event) => {
 
   if (req.mode === 'navigate') {
     event.respondWith(
-      Promise.race([fetch(req), timeout(4000)])
-        .then((res) => {
+      Promise.race([fetch(req, { cache: 'no-cache' }), timeout(4000)])
+        .then(async (res) => {
+          // Сервер ответил ошибкой (например, во время выкладки) — показываем сохранённую версию.
+          if (!res.ok) return (await fromCache()) || res
           const copy = res.clone()
-          if (res.ok) caches.open(CACHE).then((c) => c.put('./index.html', copy))
+          event.waitUntil(
+            copy.text().then(async (html) => {
+              const c = await caches.open(CACHE)
+              await c.put('./index.html', new Response(html, { headers: { 'Content-Type': 'text/html; charset=utf-8' } }))
+              await prune(html)
+            }),
+          )
           return res
         })
-        .catch(() => caches.match('./index.html', { ignoreVary: true }).then((r) => r || caches.match('./', { ignoreVary: true }))),
+        .catch(async () => (await fromCache()) || Response.error()),
     )
     return
   }
 
   event.respondWith(
-    caches.match(req, { ignoreVary: true, ignoreSearch: false }).then(
+    caches.match(req, MATCH).then(
       (hit) =>
         hit ||
         fetch(req).then((res) => {
-          if (res.ok && (url.pathname.includes('/assets/') || CORE.some((p) => url.pathname.endsWith(p.slice(1))))) {
+          if (res.ok && url.pathname.includes('/assets/')) {
             const copy = res.clone()
             caches.open(CACHE).then((c) => c.put(req, copy))
           }

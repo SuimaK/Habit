@@ -107,6 +107,27 @@ export const initialState = (): GameState => ({
 })
 
 /** Загрузить сохранённое состояние: недостающие поля (из старых версий) берутся по умолчанию. */
+/** Привычка из сохранения пригодна к работе: все обязательные поля на месте. */
+function isValidHabit(h: unknown): h is Habit {
+  if (!h || typeof h !== 'object') return false
+  const x = h as Partial<Habit>
+  const f = x.frequency as Partial<Habit['frequency']> | undefined
+  const freqOk =
+    !!f &&
+    typeof f === 'object' &&
+    (f.kind === 'daily' ||
+      (f.kind === 'weekdays' && Array.isArray(f.days) && f.days.length > 0 && f.days.every((d) => Number.isInteger(d) && d >= 1 && d <= 7)) ||
+      (f.kind === 'timesPerWeek' && Number.isInteger(f.times) && (f.times as number) >= 1 && (f.times as number) <= 7))
+  return (
+    typeof x.id === 'string' &&
+    typeof x.name === 'string' &&
+    (x.category === 'nutrition' || x.category === 'workout' || x.category === 'meditation') &&
+    (x.difficulty === 'easy' || x.difficulty === 'medium' || x.difficulty === 'hard') &&
+    freqOk &&
+    (x.archived === undefined || typeof x.archived === 'boolean')
+  )
+}
+
 const isDay = (d: unknown): d is Day => typeof d === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d)
 
 export function loadState(raw: unknown): GameState {
@@ -120,13 +141,26 @@ export function loadState(raw: unknown): GameState {
   const day = (v: unknown) => (typeof v === 'string' ? v : null)
   return {
     version: 1,
-    habits: arr<Habit>(r.habits, []).filter((h) => h && typeof h === 'object' && typeof h.id === 'string'),
-    completions: arr<Completion>(r.completions, []).filter((c) => c && typeof c === 'object'),
+    habits: arr<Habit>(r.habits, []).filter(isValidHabit),
+    completions: arr<Completion>(r.completions, [])
+      .filter((c) => c && typeof c === 'object' && typeof c.habitId === 'string' && isDay(c.day))
+      .map((c) => ({
+        ...c,
+        xp: Math.max(0, num(c.xp, 0)),
+        coins: Math.max(0, num(c.coins, 0)),
+        ...(typeof c.at === 'number' && Number.isFinite(c.at) ? {} : { at: undefined }),
+      })),
     totalXp: num(r.totalXp, 0),
     coins: Math.max(0, num(r.coins, 0)),
     xpByDay: obj(r.xpByDay, {}),
     bonusByDay: obj(r.bonusByDay, {}),
-    lives: obj(r.lives, base.lives),
+    lives: (() => {
+      const l = obj<Partial<LivesState>>(r.lives, {})
+      return {
+        count: Math.max(0, Math.round(num(l.count, base.lives.count))),
+        lastRefresh: typeof l.lastRefresh === 'number' && Number.isFinite(l.lastRefresh) ? l.lastRefresh : null,
+      }
+    })(),
     shields: {
       purchased: num(obj<Partial<ShieldsState>>(r.shields, {}).purchased, 0),
       freeUsedWeeks: arr<Day>(obj<Partial<ShieldsState>>(r.shields, {}).freeUsedWeeks, []),
@@ -199,10 +233,19 @@ export function loadState(raw: unknown): GameState {
         claimedWeeks: [...new Set(arr<Day>(x.claimedWeeks, []).filter(isDay))],
         ...(x.archived === true ? { archived: true } : {}),
       })),
-    profile:
-      r.profile && typeof r.profile === 'object' && typeof (r.profile as Profile).name === 'string'
-        ? (r.profile as Profile)
-        : null,
+    profile: (() => {
+      const p = r.profile as Partial<Profile> | null | undefined
+      if (!p || typeof p !== 'object' || typeof p.name !== 'string') return null
+      const color = (v: unknown, d: string) => (typeof v === 'string' && /^#[0-9a-f]{3,8}$/i.test(v) ? v : d)
+      return {
+        ...p,
+        name: p.name.slice(0, 40),
+        skin: color(p.skin, '#f1c7a5'),
+        hair: color(p.hair, '#6b4430'),
+        shirt: color(p.shirt, '#e9875f'),
+        createdDay: isDay(p.createdDay) ? p.createdDay : (day(r.startDay) ?? dayOf(new Date())),
+      } as Profile
+    })(),
   }
 }
 

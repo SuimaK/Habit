@@ -31,11 +31,42 @@ export function readState(): GameState | null {
 }
 
 /** Отложить копию текущего прогресса перед восстановлением из файла. */
-export function keepCopy(state: GameState) {
+const BEFORE_RESTORE = `${KEY}/before-restore`
+
+/** Хранится одна копия — последнего состояния перед восстановлением. false — записать не удалось. */
+export function keepCopy(state: GameState): boolean {
   try {
-    localStorage.setItem(`${KEY}/before-restore-${Date.now()}`, JSON.stringify(state))
+    // Старые копии прежнего формата (с меткой времени) убираем.
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+      const k = localStorage.key(i)
+      if (k?.startsWith(`${BEFORE_RESTORE}-`)) localStorage.removeItem(k)
+    }
+    localStorage.setItem(BEFORE_RESTORE, JSON.stringify(state))
+    return true
   } catch {
-    /* места нет — восстановление всё равно выполняется */
+    return false
+  }
+}
+
+/** Отложенное состояние до восстановления (сырой JSON) или null. */
+export function readKeptCopy(): string | null {
+  try {
+    return localStorage.getItem(BEFORE_RESTORE)
+  } catch {
+    return null
+  }
+}
+
+/** Вернуть отложенное состояние в основной ключ (используется и из экрана ошибки). */
+export function restoreKeptCopy(): boolean {
+  try {
+    const raw = localStorage.getItem(BEFORE_RESTORE)
+    if (!raw) return false
+    localStorage.setItem(KEY, raw)
+    localStorage.removeItem(BEFORE_RESTORE)
+    return true
+  } catch {
+    return false
   }
 }
 

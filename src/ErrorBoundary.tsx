@@ -1,4 +1,5 @@
 import { Component, type ReactNode } from 'react'
+import { readKeptCopy, restoreKeptCopy } from './storage'
 
 const KEY = 'habit-game/state/v1'
 
@@ -29,6 +30,9 @@ export class ErrorBoundary extends Component<{ children: ReactNode }, { error: b
         <h1>Что-то пошло не так</h1>
         <p>Попробуй перезапустить приложение.</p>
         <button onClick={() => location.reload()}>Перезапустить</button>
+        {readKeptCopy() && (
+          <button onClick={() => restoreKeptCopy() && location.reload()}>Вернуть данные, какими они были до восстановления из копии</button>
+        )}
         {this.state.confirm ? (
           <button className="danger" onClick={this.reset}>
             Да, начать заново

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { makeBackup, makeCsv, parseBackup, saveFile, type BackupSummary } from '../backup'
+import { readKeptCopy } from '../storage'
 import { GAME_LIMIT_OPTIONS, type GameState, type Profile } from '../core'
 import { Room } from '../components/Room'
 import { HAIRS, SHIRTS, SKINS } from '../labels'
@@ -17,7 +18,8 @@ interface Props {
   onGameLimit: (minutes: number) => void
   /** Текущее состояние — для копии и CSV. */
   state: GameState
-  onRestore: (s: GameState) => void
+  /** false — состояние не удалось применить. */
+  onRestore: (s: GameState) => boolean
 }
 
 /** Настройки: имя и внешний вид персонажа, переход к привычкам. */
@@ -130,14 +132,20 @@ export function Settings({ profile, onSave, onHabits, onClose, draft, onDraft, g
 const BACKUP_ERRORS = {
   notJson: 'Это не файл копии — не получилось его прочитать.',
   notBackup: 'В этом файле нет данных приложения.',
+  newerVersion: 'Копия сделана в более новой версии приложения. Обнови страницу и попробуй ещё раз.',
+  broken: 'Копия повреждена — восстановить из неё не получится. Текущий прогресс не тронут.',
+  tooBig: 'Файл слишком большой для копии приложения.',
+  unreadable: 'Не получилось открыть файл. Если он в iCloud, сначала скачай его в «Файлах».',
 }
 
 /** Резервная копия, восстановление и выгрузка истории. */
-function DataSection({ state, onRestore }: { state: GameState; onRestore: (s: GameState) => void }) {
+function DataSection({ state, onRestore }: { state: GameState; onRestore: (s: GameState) => boolean }) {
   const [status, setStatus] = useState('')
   const [pending, setPending] = useState<{ state: GameState; summary: BackupSummary } | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
   const confirmRef = useRef<HTMLButtonElement>(null)
+  const restoreBtn = useRef<HTMLButtonElement>(null)
+  const [kept, setKept] = useState(() => readKeptCopy())
   useEffect(() => {
     if (pending) confirmRef.current?.focus()
   }, [pending])
@@ -157,8 +165,14 @@ function DataSection({ state, onRestore }: { state: GameState; onRestore: (s: Ga
   async function pick(file: File | undefined) {
     if (fileRef.current) fileRef.current.value = ''
     if (!file) return
-    if (file.size > 20 * 1024 * 1024) return setStatus(BACKUP_ERRORS.notBackup)
-    const r = parseBackup(await file.text())
+    if (file.size > 20 * 1024 * 1024) return setStatus(BACKUP_ERRORS.tooBig)
+    let text: string
+    try {
+      text = await file.text()
+    } catch {
+      return setStatus(BACKUP_ERRORS.unreadable)
+    }
+    const r = parseBackup(text)
     if (!r.ok) return setStatus(BACKUP_ERRORS[r.error])
     setStatus('')
     setPending(r)
@@ -172,7 +186,7 @@ function DataSection({ state, onRestore }: { state: GameState; onRestore: (s: Ga
       <button type="button" className="btn primary wide" onClick={exportBackup}>
         Сохранить копию
       </button>
-      <button type="button" className="btn ghost wide" onClick={() => fileRef.current?.click()}>
+      <button type="button" className="btn ghost wide" ref={restoreBtn} onClick={() => fileRef.current?.click()}>
         Восстановить из копии
       </button>
       <input ref={fileRef} type="file" accept="application/json,.json" hidden onChange={(e) => pick(e.target.files?.[0])} />
@@ -185,24 +199,51 @@ function DataSection({ state, onRestore }: { state: GameState; onRestore: (s: Ga
             В копии{s.exportedAt ? ` от ${new Date(s.exportedAt).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' })}` : ''}:{' '}
             {s.name ?? 'без имени'}, ур. {s.level}, привычек: {s.habits}, отметок: {s.completions}, монет: {s.coins}.
           </p>
-          <p className="muted">Текущий прогресс на телефоне заменится данными из копии.</p>
+          <p className="muted">
+            Текущий прогресс на телефоне заменится данными из копии. Дни после даты копии будут считаться пропущенными — щиты
+            сработают, если есть. Текущее состояние отложится, его можно будет вернуть.
+          </p>
           <div className="row-btns">
-            <button type="button" className="btn ghost" ref={confirmRef} onClick={() => setPending(null)}>
+            <button
+              type="button"
+              className="btn ghost"
+              ref={confirmRef}
+              onClick={() => {
+                setPending(null)
+                restoreBtn.current?.focus()
+              }}
+            >
               Отмена
             </button>
             <button
               type="button"
               className="btn danger"
               onClick={() => {
-                onRestore(pending.state)
-                setPending(null)
-                setStatus('Готово: прогресс восстановлен из копии.')
+                if (!onRestore(pending.state)) {
+                  setPending(null)
+                  setStatus(BACKUP_ERRORS.broken)
+                  restoreBtn.current?.focus()
+                }
               }}
             >
               Заменить
             </button>
           </div>
         </div>
+      )}
+      {kept && !pending && (
+        <button
+          type="button"
+          className="btn ghost wide"
+          onClick={() => {
+            const r = parseBackup(kept)
+            if (r.ok && onRestore(r.state)) return
+            setKept(null)
+            setStatus(BACKUP_ERRORS.broken)
+          }}
+        >
+          Вернуть данные до восстановления
+        </button>
       )}
       <p className="muted settings-note" role="status">
         {status}

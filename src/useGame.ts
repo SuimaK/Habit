@@ -59,12 +59,18 @@ export function useGame() {
 
   /** Заменить всё состояние (восстановление из копии). Текущее откладывается в отдельный ключ на всякий случай. */
   const replace = useCallback(
-    (state: GameState) => {
-      keepCopy(engineRef.current.state)
+    (state: GameState): boolean => {
       const at = new Date()
-      const next = new GameEngine(state)
-      next.startOfDay(at)
+      let next: GameEngine
+      try {
+        next = new GameEngine(state)
+        next.startOfDay(at)
+      } catch {
+        return false
+      }
+      keepCopy(engineRef.current.state)
       commit(next, at)
+      return true
     },
     [commit],
   )

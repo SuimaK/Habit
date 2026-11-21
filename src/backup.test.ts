@@ -27,7 +27,19 @@ describe('резервная копия', () => {
     expect(parseBackup('не json')).toEqual({ ok: false, error: 'notJson' })
     expect(parseBackup('{"a":1}')).toEqual({ ok: false, error: 'notBackup' })
     expect(parseBackup('[1,2]')).toEqual({ ok: false, error: 'notBackup' })
-    expect(parseBackup(JSON.stringify({ habits: [] })).ok).toBe(true)
+    expect(parseBackup(JSON.stringify({ habits: [] })).ok).toBe(false)
+    expect(parseBackup(JSON.stringify({ name: 'other app', habits: [1, 2, 3] }))).toEqual({ ok: false, error: 'notBackup' })
+    expect(parseBackup(JSON.stringify({ app: 'habit-game', version: 2, state: { habits: [] } }))).toEqual({ ok: false, error: 'newerVersion' })
+    const own = parseBackup(JSON.stringify({ habits: [], profile: { name: 'К', skin: '#000', hair: '#000', shirt: '#000', createdDay: '2026-11-01' } }))
+    expect(own.ok).toBe(true)
+  })
+  it('битые привычки и жизни не попадают в состояние', () => {
+    const s = sample()
+    const bad = { ...s, lives: { count: 'много' }, habits: [...s.habits, { id: 'x' }, { id: 'y', name: 'y', category: 'food', difficulty: 'easy', frequency: { kind: 'daily' } }] }
+    const r = parseBackup(JSON.stringify({ app: 'habit-game', version: 1, state: bad }))
+    if (!r.ok) throw new Error(r.error)
+    expect(r.state.habits.map((h) => h.id)).toEqual(['h1'])
+    expect(r.state.lives.count).toBe(3)
   })
   it('CSV: заголовок, экранирование, защита от формул', () => {
     const { text, name } = makeCsv(sample(), now)

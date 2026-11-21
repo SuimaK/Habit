@@ -18,7 +18,7 @@ export function makeBackup(state: GameState, now: Date): { name: string; text: s
   return { name: `privychki-${dayOf(now)}.json`, text }
 }
 
-export type BackupError = 'notJson' | 'notBackup'
+export type BackupError = 'notJson' | 'notBackup' | 'newerVersion' | 'broken'
 
 /** Разобрать файл копии. Принимает и «голое» состояние без обёртки. */
 export function parseBackup(text: string): { ok: true; state: GameState; summary: BackupSummary } | { ok: false; error: BackupError } {
@@ -29,11 +29,25 @@ export function parseBackup(text: string): { ok: true; state: GameState; summary
     return { ok: false, error: 'notJson' }
   }
   if (!raw || typeof raw !== 'object') return { ok: false, error: 'notBackup' }
-  const wrapped = raw as { app?: unknown; state?: unknown; exportedAt?: unknown }
-  const inner = wrapped.app === BACKUP_APP ? wrapped.state : raw
+  const wrapped = raw as { app?: unknown; state?: unknown; exportedAt?: unknown; version?: unknown }
+  const isWrapped = wrapped.app === BACKUP_APP
+  if (isWrapped && typeof wrapped.version === 'number' && wrapped.version > 1) return { ok: false, error: 'newerVersion' }
+  const inner = isWrapped ? wrapped.state : raw
   if (!inner || typeof inner !== 'object' || !Array.isArray((inner as { habits?: unknown }).habits)) return { ok: false, error: 'notBackup' }
   const state = loadState(inner)
-  const engine = new GameEngine(state)
+  // Без обёртки принимаем только то, что похоже на наше сохранение: есть персонаж или привычки.
+  if (!isWrapped && !state.profile && state.habits.length === 0) return { ok: false, error: 'notBackup' }
+  let engine: GameEngine
+  try {
+    // Пробный запуск: копия, которая роняет игру, не должна попасть в телефон.
+    engine = new GameEngine(loadState(JSON.parse(JSON.stringify(inner))))
+    engine.startOfDay(new Date())
+    void engine.level
+    void engine.plan
+  } catch {
+    return { ok: false, error: 'broken' }
+  }
+  engine = new GameEngine(state)
   return {
     ok: true,
     state,
@@ -43,7 +57,7 @@ export function parseBackup(text: string): { ok: true; state: GameState; summary
       habits: state.habits.filter((h) => !h.archived).length,
       coins: state.coins,
       completions: state.completions.length,
-      exportedAt: typeof wrapped.exportedAt === 'string' ? wrapped.exportedAt : null,
+      exportedAt: typeof wrapped.exportedAt === 'string' && !Number.isNaN(Date.parse(wrapped.exportedAt)) ? wrapped.exportedAt : null,
     },
   }
 }
