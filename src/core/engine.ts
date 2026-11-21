@@ -12,9 +12,12 @@ import {
   generateWeekly,
   habitsKey,
   initialQuests,
+  questAlive,
+  weeklyProgress,
   rollChest,
   weeklyComplete,
   type ChestPrize,
+  type DailyQuest,
   type QuestState,
 } from './quests'
 import { initialShields, SHIELD_PRICE, consumeShield, type ShieldsState } from './shields'
@@ -111,7 +114,9 @@ export function loadState(raw: unknown): GameState {
       return {
         dailyDay: typeof q.dailyDay === 'string' ? q.dailyDay : null,
         habitsKey: typeof q.habitsKey === 'string' ? q.habitsKey : undefined,
-        daily: arr(q.daily, []),
+        daily: arr<DailyQuest>(q.daily, []).filter(
+          (x) => x && typeof x === 'object' && typeof x.id === 'string' && x.goal && typeof x.goal === 'object',
+        ),
         weekly: q.weekly && typeof q.weekly === 'object' && Array.isArray(q.weekly.lines) ? q.weekly : null,
         claimedCount: num(q.claimedCount, 0),
       }
@@ -149,6 +154,8 @@ export type CompletionError =
   | 'notCompletedToday'
   /** Отменить нельзя: монеты за отметку уже потрачены. */
   | 'coinsAlreadySpent'
+  /** Отменить нельзя: отметка засчитана в уже забранный квест. */
+  | 'usedInQuest'
 
 export type PurchaseError = 'notEnoughCoins'
 export type ClaimError = 'notFound' | 'alreadyClaimed' | 'notReady'
@@ -304,9 +311,12 @@ export class GameEngine {
     if (q.dailyDay !== today || (changed && !q.daily.some((x) => x.claimed))) {
       q.daily = generateDaily(this.state.habits, today)
       q.dailyDay = today
+    } else if (changed) {
+      // Часть квестов уже забрана: убираем только незабранные с привычками из архива.
+      q.daily = q.daily.filter((x) => x.claimed || questAlive(x, this.state.habits))
     }
     if (!q.weekly || q.weekly.weekStart !== weekStart(today) || (changed && !q.weekly.claimed)) {
-      q.weekly = generateWeekly(this.state.habits, today)
+      q.weekly = generateWeekly(this.state.habits, today, q.weekly)
     }
     q.habitsKey = key
   }
@@ -471,6 +481,16 @@ export class GameEngine {
     if (index < 0) return fail('notCompletedToday')
     const completion = this.state.completions[index]
     const rest = this.state.completions.filter((_, i) => i !== index)
+    // Нельзя снять отметку, без которой забранный квест оказался бы невыполненным.
+    const q = this.state.quests
+    const breaksDaily =
+      q.dailyDay === today &&
+      q.daily.some((x) => x.claimed && !dailyProgress(x, this.state.habits, rest, today).complete)
+    const breaksWeekly =
+      q.weekly?.claimed &&
+      q.weekly.weekStart === weekStart(today) &&
+      weeklyProgress(q.weekly, this.state.habits, rest).some((x) => !x.progress.complete)
+    if (breaksDaily || breaksWeekly) return fail('usedInQuest')
     const bonus = this.state.bonusByDay[today]
     // Бонус дня забирается, только если без этой отметки выполнены не все привычки.
     const revokeBonus = bonus && !new Plan(this.state.habits, rest).allFixedDone(today) ? bonus : null

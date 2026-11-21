@@ -3,6 +3,7 @@ import {
   DAILY_QUEST_REWARD,
   DIFFICULTY_REWARD,
   dailyProgress,
+  questTitle,
   dayOf,
   daysBetween,
   needs,
@@ -36,6 +37,7 @@ const ERRORS: Partial<Record<CompletionError, string>> = {
   coinsAlreadySpent: 'Монеты за эту отметку уже потрачены — снять её нельзя',
   weeklyTargetReached: 'Норма на эту неделю уже выполнена',
   notScheduledToday: 'Эта привычка сегодня не запланирована',
+  usedInQuest: 'Эта отметка уже засчитана в забранный квест — снять её нельзя',
 }
 
 export function Today({ engine, now, act, storageOk, onManage, onQuests }: Props) {
@@ -76,7 +78,10 @@ export function Today({ engine, now, act, storageOk, onManage, onQuests }: Props
     return () => clearTimeout(t)
   }, [toast])
 
-  const questOfDay = s.quests.dailyDay === today ? s.quests.daily.find((q) => !q.claimed) : undefined
+  // Сначала квест, который уже можно забрать, потом первый незабранный.
+  const openQuests = s.quests.dailyDay === today ? s.quests.daily.filter((q) => !q.claimed) : []
+  const questOfDay =
+    openQuests.find((q) => dailyProgress(q, s.habits, s.completions, today).complete) ?? openQuests[0]
   const questProgress = questOfDay ? dailyProgress(questOfDay, s.habits, s.completions, today) : null
 
   const mood: Mood =
@@ -112,12 +117,13 @@ export function Today({ engine, now, act, storageOk, onManage, onQuests }: Props
     setCheerKey((k) => k + 1)
     setCheering(true)
     const spoken = `${h.name}: выполнено, плюс ${ev.xp} опыта и ${ev.coins} монет.`
-    if (ev.newBadges.length) say(`Новый бейдж: ${badgeTitles(ev.newBadges)}!`, spoken)
-    else if (ev.levelAfter > ev.levelBefore) say(`Новый уровень ${ev.levelAfter}! ${titleFor(ev.levelAfter)}`, spoken)
-    else if (ev.bonusXp || ev.bonusCoins)
-      say(`Все привычки дня выполнены! Бонус +${ev.bonusXp} XP и +${ev.bonusCoins} монет`, spoken)
-    else if (ev.cappedByDailyLimit) say('Достигнут дневной лимит опыта (500 XP)', spoken)
-    else say(null, spoken)
+    // Все важные события одним сообщением, чтобы одно не вытесняло другое.
+    const news: string[] = []
+    if (ev.levelAfter > ev.levelBefore) news.push(`Новый уровень ${ev.levelAfter}! ${titleFor(ev.levelAfter)}`)
+    if (ev.bonusXp || ev.bonusCoins) news.push(`Все привычки дня выполнены! Бонус +${ev.bonusXp} XP и +${ev.bonusCoins} монет`)
+    if (ev.newBadges.length) news.push(`Новый бейдж: ${badgeTitles(ev.newBadges)}`)
+    if (ev.cappedByDailyLimit) news.push('Достигнут дневной лимит опыта (500 XP)')
+    say(news.length ? news.join('. ') : null, news.length ? `${spoken} ${news.join('. ')}` : spoken)
   }
 
   return (
@@ -244,7 +250,7 @@ export function Today({ engine, now, act, storageOk, onManage, onQuests }: Props
         <section className="card quest-day">
           <div className="quest-main">
             <span className="muted small-caps">Квест дня</span>
-            <span className="quest-title">{questOfDay.title}</span>
+            <span className="quest-title">{questTitle(questOfDay, s.habits)}</span>
             <span className="quest-reward">
               Награда: {DAILY_QUEST_REWARD.xp} XP + {DAILY_QUEST_REWARD.coins} монет
             </span>
@@ -258,8 +264,10 @@ export function Today({ engine, now, act, storageOk, onManage, onQuests }: Props
                 if (r.ok)
                   say(
                     `Квест выполнен! +${r.value.xp} XP и +${r.value.coins} монет` +
+                      (r.value.cappedByDailyLimit ? ' (дневной лимит опыта)' : '') +
                       (r.value.newBadges.length ? `. Новый бейдж: ${badgeTitles(r.value.newBadges)}` : ''),
                   )
+                else say('Квесты обновились — загляни во вкладку «Квесты»')
               }}
             >
               Забрать

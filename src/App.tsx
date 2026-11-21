@@ -54,7 +54,12 @@ export default function App() {
                 e.startOfDay(at)
               })
             }
-            onUpdate={(h) => act((e, at) => e.updateHabit(h, at))}
+            onUpdate={(h) =>
+              act((e, at) => {
+                e.updateHabit(h, at)
+                e.startOfDay(at) // квесты сразу подстраиваются под изменения
+              })
+            }
             onClose={() => setManaging(false)}
           />
         </main>

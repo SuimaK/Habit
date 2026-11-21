@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   DAILY_QUEST_REWARD,
   WEEKLY_QUEST_REWARD,
@@ -7,6 +7,7 @@ import {
   dailyProgress,
   dayOf,
   daysBetween,
+  questTitle,
   weeklyProgress,
   type GameEngine,
   type RewardEvent,
@@ -31,13 +32,20 @@ export function Quests({ engine, now, act }: Props) {
   const q = s.quests
 
   function report(r: { ok: true; value: RewardEvent } | { ok: false; error: string }) {
-    if (!r.ok) return setMessage('Сначала выполни условие квеста')
+    if (!r.ok)
+      return setMessage(r.error === 'notFound' ? 'Квесты обновились — посмотри список ещё раз' : 'Сначала выполни условие квеста')
     const ev = r.value
-    const parts = [`+${ev.xp} XP`, `+${ev.coins} монет`]
+    const parts = [`+${ev.xp} XP${ev.cappedByDailyLimit ? ' (дневной лимит опыта)' : ''}`, `+${ev.coins} монет`]
     if (ev.chest) parts.push(`в сундуке: ${chestLabel(ev.chest)}`)
     if (ev.newBadges.length) parts.push(`новый бейдж: ${badgeTitles(ev.newBadges)}`)
     setMessage(`Квест выполнен! ${parts.join(', ')}`)
   }
+
+  useEffect(() => {
+    if (!message) return
+    const t = setTimeout(() => setMessage(null), 5000)
+    return () => clearTimeout(t)
+  }, [message])
 
   const daysLeft = q.weekly ? daysBetween(today, addDays(q.weekly.weekStart, 6)) + 1 : 0
 
@@ -46,7 +54,7 @@ export function Quests({ engine, now, act }: Props) {
       <header className="screen-head">
         <h1>Квесты</h1>
       </header>
-      <div className="seg tabs" role="tablist">
+      <div className="seg tabs" role="tablist" aria-label="Квесты">
         <button role="tab" aria-selected={tab === 'day'} className={tab === 'day' ? 'on' : ''} onClick={() => setTab('day')}>
           День
         </button>
@@ -64,7 +72,9 @@ export function Quests({ engine, now, act }: Props) {
       {tab === 'day' && (
         <section className="card list-card">
           {q.dailyDay !== today || q.daily.length === 0 ? (
-            <p className="empty">Квестов на сегодня нет — добавь привычки, и они появятся.</p>
+            <p className="empty">
+              Квестов на сегодня нет. Они подбираются под привычки, запланированные на сегодня.
+            </p>
           ) : (
             <ul>
               {q.daily.map((quest) => {
@@ -72,7 +82,7 @@ export function Quests({ engine, now, act }: Props) {
                 return (
                   <li key={quest.id} className="quest">
                     <div className="quest-main">
-                      <span className="quest-title">{quest.title}</span>
+                      <span className="quest-title">{questTitle(quest, s.habits)}</span>
                       <span className="quest-reward">
                         {DAILY_QUEST_REWARD.xp} XP · {DAILY_QUEST_REWARD.coins} 🪙
                       </span>
@@ -80,14 +90,16 @@ export function Quests({ engine, now, act }: Props) {
                     </div>
                     {quest.claimed ? (
                       <span className="quest-done">Получено ✓</span>
-                    ) : (
+                    ) : p.complete ? (
                       <button
                         className="btn primary small"
-                        disabled={!p.complete}
+                        aria-label={`Забрать награду: ${questTitle(quest, s.habits)}`}
                         onClick={() => report(act((e, at) => e.claimDaily(quest.id, at)))}
                       >
                         Забрать
                       </button>
+                    ) : (
+                      <span className="quest-wait">В процессе</span>
                     )}
                   </li>
                 )
@@ -120,7 +132,7 @@ export function Quests({ engine, now, act }: Props) {
               </p>
               {q.weekly.claimed ? (
                 <p className="quest-done">
-                  Получено ✓{q.weekly.chest ? ` В сундуке было: ${chestLabel(q.weekly.chest)}` : ''}
+                  Получено ✓{q.weekly.chest ? ` В сундуке было: ${chestLabel(q.weekly.chest)}.` : ''}
                 </p>
               ) : (
                 <button

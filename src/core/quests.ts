@@ -1,4 +1,4 @@
-import { addDays, weekday, weekStart, type Day } from './day'
+import { addDays, daysBetween, weekday, weekStart, type Day } from './day'
 import type { Category, Completion, Habit } from './models'
 
 /**
@@ -49,7 +49,7 @@ export interface QuestState {
 export function habitsKey(habits: Habit[]): string {
   return habits
     .filter((h) => !h.archived)
-    .map((h) => `${h.id}:${h.category}:${JSON.stringify(h.frequency)}`)
+    .map((h) => `${h.id}:${h.name}:${h.category}:${JSON.stringify(h.frequency)}`)
     .sort()
     .join('|')
 }
@@ -84,7 +84,21 @@ function shuffle<T>(items: T[], rnd: () => number): T[] {
   return a
 }
 
-const pluralHabits = (n: number) => (n === 1 ? 'привычку' : n < 5 ? 'привычки' : 'привычек')
+function pluralHabits(n: number): string {
+  const m10 = n % 10
+  const m100 = n % 100
+  if (m10 === 1 && m100 !== 11) return 'привычку'
+  if (m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14)) return 'привычки'
+  return 'привычек'
+}
+
+function pluralCoins(n: number): string {
+  const m10 = n % 10
+  const m100 = n % 100
+  if (m10 === 1 && m100 !== 11) return 'монета'
+  if (m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14)) return 'монеты'
+  return 'монет'
+}
 
 /** Привычки, которые на этот день стоят в расписании (активные). */
 function scheduledOn(habits: Habit[], day: Day): Habit[] {
@@ -122,7 +136,34 @@ export function generateDaily(habits: Habit[], day: Day): DailyQuest[] {
     if (picked.length >= DAILY_QUESTS_PER_DAY) break
     if (c.goal.kind === 'habit') picked.push(c)
   }
-  return picked.slice(0, DAILY_QUESTS_PER_DAY).map((c, i) => ({ ...c, id: `${day}-${i}`, claimed: false }))
+  return picked.slice(0, DAILY_QUESTS_PER_DAY).map((c) => ({ ...c, id: questId(day, c.goal), claimed: false }))
+}
+
+/** Стабильный id квеста по дню и цели: после пересборки тот же квест находится по тому же id. */
+export function questId(day: Day, goal: DailyGoal): string {
+  switch (goal.kind) {
+    case 'habit':
+      return `${day}:habit:${goal.habitId}`
+    case 'category':
+      return `${day}:cat:${goal.category}:${goal.count}`
+    case 'total':
+      return `${day}:total:${goal.count}`
+  }
+}
+
+/** Название квеста с актуальным именем привычки (после переименования). */
+export function questTitle(q: DailyQuest, habits: Habit[]): string {
+  if (q.goal.kind !== 'habit') return q.title
+  const id = q.goal.habitId
+  const h = habits.find((x) => x.id === id)
+  return h ? `«${h.name}»` : q.title
+}
+
+/** Квест ещё имеет смысл: привычка из него не удалена и не в архиве. */
+export function questAlive(q: DailyQuest, habits: Habit[]): boolean {
+  if (q.goal.kind !== 'habit') return true
+  const id = q.goal.habitId
+  return habits.some((h) => h.id === id && !h.archived)
 }
 
 export interface QuestProgress {
@@ -167,14 +208,24 @@ function perWeek(h: Habit): number {
 }
 
 /** Недельный квест: по направлениям, ~70% недельного плана. */
-export function generateWeekly(habits: Habit[], day: Day): WeeklyQuest {
+/**
+ * Недельный квест. Если неделя уже идёт, цель новых направлений считается на оставшиеся дни;
+ * цели направлений из прежнего квеста этой недели (`prev`) не меняются.
+ */
+export function generateWeekly(habits: Habit[], day: Day, prev?: WeeklyQuest | null): WeeklyQuest {
+  const start = weekStart(day)
+  const daysLeft = 7 - daysBetween(start, day) // включая сегодня
+  const same = prev && prev.weekStart === start ? prev : null
   const active = habits.filter((h) => !h.archived)
   const lines: WeeklyLine[] = []
   for (const cat of ['workout', 'meditation', 'nutrition'] as const) {
     const planned = active.filter((h) => h.category === cat).reduce((s, h) => s + perWeek(h), 0)
-    if (planned > 0) lines.push({ category: cat, target: Math.min(14, Math.max(1, Math.round(planned * 0.7))) })
+    if (planned === 0) continue
+    const kept = same?.lines.find((l) => l.category === cat)
+    const target = kept ? kept.target : Math.min(14, Math.max(1, Math.round((planned * 0.7 * daysLeft) / 7)))
+    lines.push({ category: cat, target })
   }
-  return { weekStart: weekStart(day), lines, claimed: false, chest: null }
+  return { weekStart: start, lines, claimed: false, chest: null }
 }
 
 export function weeklyProgress(
@@ -206,7 +257,7 @@ export function rollChest(seed: string): ChestPrize {
 export function chestLabel(p: ChestPrize): string {
   switch (p.kind) {
     case 'coins':
-      return `${p.amount} монет`
+      return `${p.amount} ${pluralCoins(p.amount)}`
     case 'shield':
       return 'Щит серии'
     case 'lives':

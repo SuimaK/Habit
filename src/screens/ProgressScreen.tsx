@@ -36,7 +36,12 @@ export function ProgressScreen({ engine }: { engine: GameEngine }) {
         {BADGES.map((b) => {
           const day = s.badges[b.id]
           return (
-            <div key={b.id} className={`badge card ${day ? 'got' : 'locked'} rarity-${b.rarity}`}>
+            <div
+              key={b.id}
+              className={`badge card ${day ? 'got' : 'locked'} rarity-${b.rarity}`}
+              aria-label={`${b.title}. ${b.description}. ${day ? `Получен ${fmt(day)}` : 'Ещё не получен'}`}
+              role="group"
+            >
               <span className="badge-icon" aria-hidden>
                 {day ? b.icon : '🔒'}
               </span>

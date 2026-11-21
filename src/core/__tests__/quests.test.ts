@@ -112,13 +112,51 @@ describe('недельный квест и сундук', () => {
       withCat(habit(), 'meditation'),
       withCat(habit('easy', { kind: 'weekdays', days: [1, 3] }), 'nutrition'),
     ]
-    const q = generateWeekly(hs, d(18))
+    const q = generateWeekly(hs, d(16))
     expect(q.weekStart).toBe(d(16))
     expect(q.lines).toEqual([
       { category: 'workout', target: 2 },
       { category: 'meditation', target: 5 },
       { category: 'nutrition', target: 1 },
     ])
+    // посреди недели — на оставшиеся дни; в воскресенье — минимум 1
+    expect(generateWeekly(hs, d(19)).lines.find((l) => l.category === 'meditation')!.target).toBe(3)
+    expect(generateWeekly(hs, d(22)).lines.every((l) => l.target === 1)).toBe(true)
+  })
+
+  it('добавление направления посреди недели не меняет прежние цели', () => {
+    const w = withCat(habit(), 'workout')
+    const prev = generateWeekly([w], d(16))
+    const next = generateWeekly([w, withCat(habit(), 'meditation')], d(20), prev)
+    // пятница: осталось 3 дня, 7 × 0,7 × 3/7 = 2,1 → 2
+    expect(next.lines).toEqual([
+      { category: 'workout', target: 5 },
+      { category: 'meditation', target: 2 },
+    ])
+  })
+
+  it('снять отметку, засчитанную в забранный квест, нельзя', () => {
+    const a = withCat(habit(), 'nutrition'), b = withCat(habit(), 'nutrition'), c = withCat(habit(), 'workout')
+    const e = engine([a, b, c])
+    e.startOfDay(at(16, 8))
+    must(e.complete(a.id, at(16, 9)))
+    must(e.complete(b.id, at(16, 9)))
+    const q = e.state.quests.daily.find((x) => x.goal.kind === 'category')!
+    must(e.claimDaily(q.id, at(16, 9)))
+    expect(err(e.undo(b.id, at(16, 10)))).toBe('usedInQuest')
+  })
+
+  it('id квеста стабилен: забор после пересборки находит тот же квест', () => {
+    const a = habit(), b = habit()
+    const e = engine([a, b])
+    e.startOfDay(at(16, 8))
+    const q = e.state.quests.daily.find((x) => x.goal.kind === 'habit' && x.goal.habitId === a.id)!
+    must(e.complete(a.id, at(16, 9)))
+    e.updateHabit({ ...b, archived: true }, at(16, 9))
+    const r = e.claimDaily(q.id, at(16, 9))
+    if (r.ok) expect(e.state.quests.daily.find((x) => x.id === q.id)!.claimed).toBe(true)
+    else expect(r.error).toBe('notFound')
+    expect(e.state.quests.daily.some((x) => x.goal.kind === 'habit' && x.goal.habitId === b.id)).toBe(false)
   })
 
   it('забрать: 150 XP + 20 монет + сундук, засчитываются только отметки этой недели', () => {

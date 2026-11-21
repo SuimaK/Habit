@@ -17,6 +17,7 @@
   --xp: #9b6bd6;
   --xp-text: #7543b5;
   --on-accent: #ffffff;
+  --good-text: #2f6b38;
   --warn-bg: #fde8d8;
   --warn-ink: #7a3410;
   --bar-bg: #efe4d6;
@@ -82,6 +83,7 @@
     --xp-text: #c4a6f5;
     --need-nutrition-strong: #e9b44c;
     --on-accent: #2a1408;
+    --good-text: #8fd19a;
     --warn-bg: #4a2a1c;
     --warn-ink: #ffd9c4;
   }
@@ -321,7 +323,8 @@ main {
 .quest-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; overflow-wrap: anywhere; }
 .quest-title { font-size: 16px; font-weight: 600; }
 .quest-reward { color: var(--xp-text); font-size: 13px; font-weight: 600; margin: 0; }
-.quest-done { color: var(--good); font-weight: 700; font-size: 14px; margin: 0; }
+.quest-done { color: var(--good-text); font-weight: 700; font-size: 14px; margin: 0; }
+.quest-wait { color: var(--muted); font-size: 13px; white-space: nowrap; }
 .qprogress { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center; font-size: 13px; }
 .quest-day { display: flex; align-items: center; gap: 12px; padding: 14px 16px; }
 .small-caps { font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; }
@@ -337,7 +340,8 @@ main {
 .badge { padding: 14px 12px; display: flex; flex-direction: column; gap: 4px; text-align: center; align-items: center; }
 .badge .muted { font-size: 12px; }
 .badge-icon { font-size: 32px; }
-.badge.locked { opacity: 0.6; }
+.badge.locked .badge-icon { filter: grayscale(1); opacity: 0.7; }
+.badge.locked strong { color: var(--muted); }
 .badge-meta { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
 .badge.got.rarity-rare { box-shadow: 0 0 0 2px #7b8ce0; }
 .badge.got.rarity-legendary { box-shadow: 0 0 0 2px #e9b44c; }
