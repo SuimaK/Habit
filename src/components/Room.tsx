@@ -1,6 +1,9 @@
 export type Mood = 'happy' | 'calm' | 'sad'
 
+import { DEFAULT_LOOK, type Look } from '../labels'
+
 interface Props {
+  look?: Look
   mood: Mood
   /** Меняется при каждой отметке — персонаж подпрыгивает от радости. */
   cheerKey: number
@@ -10,7 +13,7 @@ interface Props {
  * Комната в изометрии и персонаж. Своя простая графика из фигур:
  * стены, окно, картина, диван, ковёр, растение.
  */
-export function Room({ mood, cheerKey }: Props) {
+export function Room({ mood, cheerKey, look = DEFAULT_LOOK }: Props) {
   const mouth =
     mood === 'happy' ? 'M-6 -58 Q0 -51 6 -58' : mood === 'sad' ? 'M-6 -53 Q0 -59 6 -53' : 'M-5 -55 L5 -55'
   return (
@@ -60,22 +63,22 @@ export function Room({ mood, cheerKey }: Props) {
           <rect x="-9" y="-26" width="7" height="26" rx="3" fill="var(--pants)" />
           <rect x="2" y="-26" width="7" height="26" rx="3" fill="var(--pants)" />
           {/* туловище */}
-          <rect x="-14" y="-52" width="28" height="30" rx="10" fill="var(--shirt)" />
+          <rect x="-14" y="-52" width="28" height="30" rx="10" fill={look.shirt} />
           {/* руки */}
           {mood === 'happy' ? (
             <>
-              <rect x="-24" y="-66" width="7" height="22" rx="3.5" fill="var(--skin)" transform="rotate(-30 -20 -48)" />
-              <rect x="17" y="-66" width="7" height="22" rx="3.5" fill="var(--skin)" transform="rotate(30 20 -48)" />
+              <rect x="-24" y="-66" width="7" height="22" rx="3.5" fill={look.skin} transform="rotate(-30 -20 -48)" />
+              <rect x="17" y="-66" width="7" height="22" rx="3.5" fill={look.skin} transform="rotate(30 20 -48)" />
             </>
           ) : (
             <>
-              <rect x="-21" y="-50" width="7" height="22" rx="3.5" fill="var(--skin)" />
-              <rect x="14" y="-50" width="7" height="22" rx="3.5" fill="var(--skin)" />
+              <rect x="-21" y="-50" width="7" height="22" rx="3.5" fill={look.skin} />
+              <rect x="14" y="-50" width="7" height="22" rx="3.5" fill={look.skin} />
             </>
           )}
           {/* голова */}
-          <circle cx="0" cy="-64" r="13" fill="var(--skin)" />
-          <path d="M-13 -66 Q-12 -80 0 -79 Q13 -80 13 -66 Q8 -73 0 -72 Q-8 -73 -13 -66Z" fill="var(--hair)" />
+          <circle cx="0" cy="-64" r="13" fill={look.skin} />
+          <path d="M-13 -66 Q-12 -80 0 -79 Q13 -80 13 -66 Q8 -73 0 -72 Q-8 -73 -13 -66Z" fill={look.hair} />
           <circle cx="-5" cy="-63" r="1.6" fill="var(--ink)" />
           <circle cx="5" cy="-63" r="1.6" fill="var(--ink)" />
           <path d={mouth} stroke="var(--ink)" strokeWidth="1.6" fill="none" strokeLinecap="round" />

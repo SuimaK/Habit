@@ -1,12 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { GameEngine } from './core'
-import { starterHabits } from './seed'
 import { readState, writeState } from './storage'
 
 function boot(now: Date): { engine: GameEngine; saved: boolean } {
   const stored = readState()
   const engine = new GameEngine(stored ?? undefined)
-  if (!stored) starterHabits().forEach((h) => engine.addHabit(h, now))
   engine.startOfDay(now)
   return { engine, saved: writeState(engine.state) }
 }

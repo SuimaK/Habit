@@ -27,6 +27,27 @@ export interface Habit {
   frequency: Frequency
   /** Привычка в архиве не входит в план и не отмечается. */
   archived: boolean
+  /** Цель на одно выполнение: «10 минут», «2 порции». Отметка всё равно одна — «сделано». */
+  target?: HabitTarget
+  /** Когда удобно делать — для порядка в списке «Сегодня». */
+  timeOfDay?: TimeOfDay
+}
+
+export type TargetUnit = 'times' | 'minutes' | 'portions'
+export interface HabitTarget {
+  amount: number
+  unit: TargetUnit
+}
+export type TimeOfDay = 'morning' | 'day' | 'evening' | 'any'
+
+/** Персонаж и итоги онбординга. */
+export interface Profile {
+  name: string
+  skin: string
+  hair: string
+  shirt: string
+  /** Дата прохождения онбординга. */
+  createdDay: Day
 }
 
 /** Отметка выполнения. Хранит начисленное, чтобы корректно отменить. */

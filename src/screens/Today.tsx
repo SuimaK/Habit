@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import {
   DIFFICULTY_REWARD,
   dayOf,
+  daysBetween,
   needs,
   streakMultiplier,
   titleFor,
@@ -10,12 +11,14 @@ import {
   type Habit,
 } from '../core'
 import { Room, type Mood } from '../components/Room'
+import { DEFAULT_LOOK, TIME_ORDER } from '../labels'
 
 interface Props {
   engine: GameEngine
   now: Date
   act: <T>(fn: (e: GameEngine, now: Date) => T) => T
   storageOk: boolean
+  onManage: () => void
 }
 
 interface Float {
@@ -30,18 +33,22 @@ const ERRORS: Partial<Record<CompletionError, string>> = {
   notScheduledToday: 'Эта привычка сегодня не запланирована',
 }
 
-export function Today({ engine, now, act, storageOk }: Props) {
+export function Today({ engine, now, act, storageOk, onManage }: Props) {
   const today = dayOf(now)
   const plan = engine.plan
   const s = engine.state
   const level = engine.level
   const streak = engine.currentStreak(now)
   const multiplier = streakMultiplier(engine.multiplierStreak(now))
-  const bars = needs(s.habits, s.completions, today)
+  // Первую неделю окно шкал ещё не заполнено — не грустим, чтобы не было чувства вины на старте.
+  const settling = s.profile ? daysBetween(s.profile.createdDay, today) < 7 : false
+  const bars = needs(s.habits, s.completions, today).map((b) => (settling ? { ...b, sad: false } : b))
 
   const fixed = plan.fixedHabits(today)
   const flexible = plan.habits.filter((h) => h.frequency.kind === 'timesPerWeek')
-  const list = [...fixed, ...flexible]
+  const list = [...fixed, ...flexible].sort(
+    (a, b) => TIME_ORDER[a.timeOfDay ?? 'any'] - TIME_ORDER[b.timeOfDay ?? 'any'],
+  )
   const doneCount = list.filter((h) => engine.isCompleted(h.id, today)).length
 
   const [cheerKey, setCheerKey] = useState(0)
@@ -113,10 +120,10 @@ export function Today({ engine, now, act, storageOk }: Props) {
         </p>
       )}
       <section className="scene card">
-        <Room mood={mood} cheerKey={cheerKey} />
+        <Room mood={mood} cheerKey={cheerKey} look={s.profile ?? DEFAULT_LOOK} />
         <div className="hud">
           <div className="hud-title">
-            Ур. {level.level} · {titleFor(level.level)}
+            {s.profile ? `${s.profile.name} · ` : ''}Ур. {level.level} · {titleFor(level.level)}
           </div>
           {bars.map((b) => (
             <div className="need" key={b.category}>
@@ -174,8 +181,15 @@ export function Today({ engine, now, act, storageOk }: Props) {
           <span>
             {doneCount} из {list.length} готово
           </span>
+          <button type="button" className="btn ghost small edit-btn" onClick={onManage}>
+            Изменить
+          </button>
         </header>
-        {list.length === 0 && <p className="empty">На сегодня привычек нет — отдыхай.</p>}
+        {list.length === 0 && (
+          <p className="empty">
+            {plan.habits.length === 0 ? 'Привычек пока нет — нажми «Изменить», чтобы добавить.' : 'На сегодня привычек нет — отдыхай.'}
+          </p>
+        )}
         <ul>
           {list.map((h) => {
             const done = engine.isCompleted(h.id, today)

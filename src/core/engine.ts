@@ -1,7 +1,7 @@
 import { addDays, dayOf, type Day } from './day'
 import { levelProgress, type LevelProgress } from './leveling'
 import { initialLives, LIFE_PACKS, refreshLives, type LifePack, type LivesState } from './lives'
-import { DIFFICULTY_REWARD, type Completion, type Habit } from './models'
+import { DIFFICULTY_REWARD, type Completion, type Habit, type Profile } from './models'
 import { Plan, type DayResult } from './plan'
 import { initialShields, SHIELD_PRICE, consumeShield, type ShieldsState } from './shields'
 import { currentOverallStreak, habitStreak, overallStreak, streakMultiplier } from './streaks'
@@ -33,6 +33,8 @@ export interface GameState {
   bestPastStreak: number
   /** Лучшая серия с учётом сегодняшнего дня. */
   bestStreak: number
+  /** Персонаж. null — онбординг ещё не пройден. */
+  profile: Profile | null
 }
 
 export const initialState = (): GameState => ({
@@ -51,6 +53,7 @@ export const initialState = (): GameState => ({
   dayResults: {},
   bestPastStreak: 0,
   bestStreak: 0,
+  profile: null,
 })
 
 /** Загрузить сохранённое состояние: недостающие поля (из старых версий) берутся по умолчанию. */
@@ -83,6 +86,10 @@ export function loadState(raw: unknown): GameState {
     // В старых сохранениях был только bestStreak.
     bestPastStreak: num(r.bestPastStreak, num(r.bestStreak, 0)),
     bestStreak: num(r.bestStreak, 0),
+    profile:
+      r.profile && typeof r.profile === 'object' && typeof (r.profile as Profile).name === 'string'
+        ? (r.profile as Profile)
+        : null,
   }
 }
 
@@ -95,6 +102,9 @@ export function validateHabit(h: Habit): string | null {
   }
   if (f.kind === 'timesPerWeek' && (!Number.isInteger(f.times) || f.times < 1 || f.times > 7)) {
     return 'От 1 до 7 раз в неделю'
+  }
+  if (h.target && (!Number.isFinite(h.target.amount) || h.target.amount <= 0)) {
+    return 'Цель должна быть больше нуля'
   }
   return null
 }
