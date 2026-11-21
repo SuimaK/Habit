@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { BLOCKS_LEVEL, LIFE_PACKS, dayOf, nextBoundary, type GameEngine, type GameId, type LifePack } from '../core'
+import { BLOCKS_LEVEL, LIFE_PACKS, TEST_MODE, UNLIMITED_LIVES_MIN, dayOf, isTestMode, nextBoundary, type GameEngine, type GameId, type LifePack } from '../core'
 import { plural } from '../labels'
 
 interface Props {
@@ -28,6 +28,9 @@ export function Games({ engine, now, act, onPlay }: Props) {
   const refresh = nextBoundary(now).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })
   const level = engine.level.level
   const blocksOpen = level >= BLOCKS_LEVEL
+  const unlimitedUntil = engine.unlimitedUntil(now)
+  const cost = engine.livesUnlimited(now) ? ', жизни сейчас не тратятся' : ', стоит 1 жизнь'
+  const hhmm = (d: Date) => d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })
 
   useEffect(() => {
     if (!notice) return
@@ -52,7 +55,7 @@ export function Games({ engine, now, act, onPlay }: Props) {
           <span>
             <span aria-hidden>♥ </span>
             <span className="sr-only">Жизни: </span>
-            {s.lives.count}
+            {engine.livesUnlimited(now) ? '∞' : s.lives.count}
           </span>
           <span>
             <span aria-hidden>🪙 </span>
@@ -76,7 +79,7 @@ export function Games({ engine, now, act, onPlay }: Props) {
               «Перекус»
               <small>Змейка · рекорд {g.records.snack ?? 0}</small>
             </span>
-            <button type="button" className="btn primary small" disabled={!!block} onClick={() => onPlay('snack')} aria-label="Играть в «Перекус», стоит 1 жизнь" aria-describedby={block ? 'game-block' : undefined}>
+            <button type="button" className="btn primary small" disabled={!!block} onClick={() => onPlay('snack')} aria-label={`Играть в «Перекус»${cost}`} aria-describedby={block ? 'game-block' : undefined}>
               Играть ♥1
             </button>
           </li>
@@ -88,7 +91,7 @@ export function Games({ engine, now, act, onPlay }: Props) {
               «Шарики»
               <small>Стрелялка · рекорд {g.records.bubbles ?? 0}</small>
             </span>
-            <button type="button" className="btn primary small" disabled={!!block} onClick={() => onPlay('bubbles')} aria-label="Играть в «Шарики», стоит 1 жизнь" aria-describedby={block ? 'game-block' : undefined}>
+            <button type="button" className="btn primary small" disabled={!!block} onClick={() => onPlay('bubbles')} aria-label={`Играть в «Шарики»${cost}`} aria-describedby={block ? 'game-block' : undefined}>
               Играть ♥1
             </button>
           </li>
@@ -101,7 +104,7 @@ export function Games({ engine, now, act, onPlay }: Props) {
               <small>{blocksOpen ? `Падающие ящики · рекорд ${g.records.blocks ?? 0}` : `Откроется на ${BLOCKS_LEVEL}-м уровне (сейчас ${level}-й)`}</small>
             </span>
             {blocksOpen && (
-              <button type="button" className="btn primary small" disabled={!!block} onClick={() => onPlay('blocks')} aria-label="Играть в «Блоки», стоит 1 жизнь" aria-describedby={block ? 'game-block' : undefined}>
+              <button type="button" className="btn primary small" disabled={!!block} onClick={() => onPlay('blocks')} aria-label={`Играть в «Блоки»${cost}`} aria-describedby={block ? 'game-block' : undefined}>
                 Играть ♥1
               </button>
             )}
@@ -137,7 +140,18 @@ export function Games({ engine, now, act, onPlay }: Props) {
             )
           })}
         </ul>
+        {isTestMode(now) ? (
+          <p className="game-info">
+            Тестовый период: жизни не тратятся до конца{' '}
+            {new Date(TEST_MODE.until - 1).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' })}.
+          </p>
+        ) : (
+          unlimitedUntil && <p className="game-info">Безлимит жизней за квест — до {hhmm(unlimitedUntil)}.</p>
+        )}
         <p className="muted game-info">Бесплатно: каждый день в {refresh} запас пополняется до 5 жизней.</p>
+        <p className="muted game-info">
+          За квест дня — {UNLIMITED_LIVES_MIN.daily} минут безлимита жизней, за недельный — {UNLIMITED_LIVES_MIN.weekly}.
+        </p>
         <p className="muted game-info">
           {g.limitMin ? `Сегодня сыграно: ${Math.min(playedMin, g.limitMin)} из ${g.limitMin} мин.` : `Сегодня сыграно: ${playedMin} мин. Лимит выключен.`}
         </p>
