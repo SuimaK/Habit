@@ -50,6 +50,16 @@ export interface Profile {
   createdDay: Day
 }
 
+/** Сессия по таймеру (тренировка или медитация) с настроением до и после (1–5). */
+export interface Session {
+  habitId: string
+  day: Day
+  /** Сколько минут длилась сессия. */
+  minutes: number
+  moodBefore?: number
+  moodAfter?: number
+}
+
 /** Отметка выполнения. Хранит начисленное, чтобы корректно отменить. */
 export interface Completion {
   habitId: string

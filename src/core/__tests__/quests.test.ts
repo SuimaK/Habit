@@ -247,3 +247,16 @@ describe('бейджи', () => {
     expect(e.state.badges.med10).toBe(d(10))
   })
 })
+
+describe('сессии таймера', () => {
+  it('записываются с настроением 1–5, неверное настроение не сохраняется', () => {
+    const e = engine([habit()])
+    const id = e.state.habits[0].id
+    e.logSession({ habitId: id, day: d(16), minutes: 10, moodBefore: 3, moodAfter: 9 })
+    expect(e.state.sessions[0]).toMatchObject({ minutes: 10, moodBefore: 3, moodAfter: undefined })
+    e.setMoodAfter(id, d(16), 4)
+    expect(e.state.sessions[0].moodAfter).toBe(4)
+    e.setMoodAfter(id, d(16), 0)
+    expect(e.state.sessions[0].moodAfter).toBe(4)
+  })
+})

@@ -25,6 +25,8 @@ interface Props {
   storageOk: boolean
   onManage: () => void
   onQuests: () => void
+  /** Открыть таймер привычки. */
+  onTimer: (h: Habit) => void
 }
 
 interface Float {
@@ -40,7 +42,7 @@ const ERRORS: Partial<Record<CompletionError, string>> = {
   usedInQuest: 'Эта отметка уже засчитана в забранный квест — снять её нельзя',
 }
 
-export function Today({ engine, now, act, storageOk, onManage, onQuests }: Props) {
+export function Today({ engine, now, act, storageOk, onManage, onQuests, onTimer }: Props) {
   const today = dayOf(now)
   const plan = engine.plan
   const s = engine.state
@@ -213,8 +215,9 @@ export function Today({ engine, now, act, storageOk, onManage, onQuests }: Props
             const weekTarget = h.frequency.kind === 'timesPerWeek' ? h.frequency.times : 0
             const blocked = weekly && !done && weekDone >= weekTarget
             const xp = Math.round(DIFFICULTY_REWARD[h.difficulty].xp * multiplier)
+            const timed = (h.category === 'workout' || h.category === 'meditation') && !done && !blocked
             return (
-              <li key={h.id} className={`habit ${done ? 'done' : ''} ${blocked ? 'blocked' : ''}`}>
+              <li key={h.id} className={`habit ${done ? 'done' : ''} ${blocked ? 'blocked' : ''} ${timed ? 'timed' : ''}`}>
                 <button
                   className="habit-btn"
                   onClick={() => toggle(h)}
@@ -233,6 +236,11 @@ export function Today({ engine, now, act, storageOk, onManage, onQuests }: Props
                   </span>
                   <span className="habit-xp">+{xp} XP</span>
                 </button>
+                {timed && (
+                  <button type="button" className="play-btn" aria-label={`Таймер: ${h.name}`} onClick={() => onTimer(h)}>
+                    <span aria-hidden>▶</span>
+                  </button>
+                )}
                 {floats
                   .filter((f) => f.habitId === h.id)
                   .map((f) => (

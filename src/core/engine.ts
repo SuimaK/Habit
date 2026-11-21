@@ -1,7 +1,7 @@
 import { addDays, dayOf, weekStart, type Day } from './day'
 import { levelProgress, type LevelProgress } from './leveling'
 import { initialLives, LIFE_PACKS, refreshLives, type LifePack, type LivesState } from './lives'
-import { DIFFICULTY_REWARD, type Completion, type Habit, type Profile } from './models'
+import { DIFFICULTY_REWARD, type Completion, type Habit, type Profile, type Session } from './models'
 import { Plan, type DayResult } from './plan'
 import { BADGES, type BadgeContext, type BadgesState } from './badges'
 import {
@@ -56,6 +56,8 @@ export interface GameState {
   quests: QuestState
   /** Полученные бейджи: id → день получения. */
   badges: BadgesState
+  /** Сессии по таймеру. */
+  sessions: Session[]
 }
 
 export const initialState = (): GameState => ({
@@ -77,6 +79,7 @@ export const initialState = (): GameState => ({
   profile: null,
   quests: initialQuests(),
   badges: {},
+  sessions: [],
 })
 
 /** Загрузить сохранённое состояние: недостающие поля (из старых версий) берутся по умолчанию. */
@@ -125,6 +128,7 @@ export function loadState(raw: unknown): GameState {
       }
     })(),
     badges: obj(r.badges, {}),
+    sessions: arr<Session>(r.sessions, []).filter((x) => x && typeof x === 'object' && typeof x.habitId === 'string'),
     profile:
       r.profile && typeof r.profile === 'object' && typeof (r.profile as Profile).name === 'string'
         ? (r.profile as Profile)
@@ -301,6 +305,30 @@ export class GameEngine {
     this.ensureQuests(today)
     this.checkBadges(now)
     return saved
+  }
+
+  // ---------- Таймер ----------
+
+  /** Записать сессию по таймеру. Настроение — целое 1–5, иначе не сохраняется. */
+  logSession(session: Session) {
+    const mood = (m?: number) => (m !== undefined && Number.isInteger(m) && m >= 1 && m <= 5 ? m : undefined)
+    this.state.sessions.push({
+      ...session,
+      minutes: Math.max(0, Math.round(session.minutes * 10) / 10),
+      moodBefore: mood(session.moodBefore),
+      moodAfter: mood(session.moodAfter),
+    })
+  }
+
+  /** Указать настроение после для последней сессии привычки за день. */
+  setMoodAfter(habitId: string, day: Day, mood: number) {
+    for (let i = this.state.sessions.length - 1; i >= 0; i--) {
+      const s = this.state.sessions[i]
+      if (s.habitId === habitId && s.day === day) {
+        if (Number.isInteger(mood) && mood >= 1 && mood <= 5) s.moodAfter = mood
+        return
+      }
+    }
   }
 
   // ---------- Квесты ----------
