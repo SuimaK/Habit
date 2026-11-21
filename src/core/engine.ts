@@ -57,7 +57,16 @@ export const initialState = (): GameState => ({
 export function loadState(raw: unknown): GameState {
   const base = initialState()
   if (!raw || typeof raw !== 'object') return base
-  return { ...base, ...(raw as Partial<GameState>), version: 1 }
+  const r = raw as Partial<GameState>
+  return {
+    ...base,
+    ...r,
+    lives: { ...base.lives, ...r.lives },
+    shields: { ...base.shields, ...r.shields },
+    // В старых сохранениях был только bestStreak.
+    bestPastStreak: r.bestPastStreak ?? r.bestStreak ?? 0,
+    version: 1,
+  }
 }
 
 /** Проверка параметров привычки. Возвращает текст ошибки или null. */
@@ -173,6 +182,13 @@ export class GameEngine {
     this.state.lives = refreshLives(this.state.lives, now)
 
     const yesterday = addDays(today, -1)
+    // Часы перевели назад (или перелёт на запад): дни начиная с сегодняшнего снова открыты.
+    if (this.state.lastProcessedDay && this.state.lastProcessedDay >= today) {
+      for (const day of Object.keys(this.state.dayResults)) {
+        if (day >= today) delete this.state.dayResults[day]
+      }
+      this.state.lastProcessedDay = yesterday
+    }
     const earliest = this.earliest(today)
     const saved: Day[] = []
     const plan = this.plan // видит state.dayResults по ссылке, поэтому замороженные итоги сразу учитываются
@@ -229,9 +245,14 @@ export class GameEngine {
 
   // ---------- Привычки ----------
 
-  addHabit(habit: Habit) {
+  /**
+   * Добавить привычку. Интерфейс всегда передаёт `now`: прошедшие дни закрываются
+   * до изменения, чтобы новая привычка не попала в их итоги.
+   */
+  addHabit(habit: Habit, now?: Date) {
     const error = validateHabit(habit)
     if (error) throw new Error(error)
+    if (now) this.startOfDay(now)
     this.state.habits.push(habit)
   }
 
@@ -242,12 +263,11 @@ export class GameEngine {
   updateHabit(habit: Habit, now?: Date) {
     const error = validateHabit(habit)
     if (error) throw new Error(error)
+    // Сначала закрываем прошедшие дни по старому набору привычек.
+    if (now) this.startOfDay(now)
     const i = this.state.habits.findIndex((h) => h.id === habit.id)
     if (i >= 0) this.state.habits[i] = habit
-    if (now) {
-      this.startOfDay(now)
-      this.checkDayBonus(dayOf(now))
-    }
+    if (now) this.checkDayBonus(dayOf(now))
   }
 
   /** Отметить привычку выполненной сегодня. */

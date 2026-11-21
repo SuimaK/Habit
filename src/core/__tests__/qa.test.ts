@@ -399,3 +399,112 @@ describe('исправления после проверки', () => {
     expect(() => engine([{ ...habit(), name: '  ' }])).toThrow()
   })
 })
+
+describe('повторная проверка (0be6e3a): регрессии заморозки, щитов и startOfDay', () => {
+  it('ИСПРАВЛЕНО: updateHabit(habit, now) меняет привычку ДО закрытия вчерашнего дня', () => {
+    // Приложение открыто через полночь: последний startOfDay был 20-го.
+    const a = habit(), b = habit(), c = habit(), x = habit()
+    const e = engine([a, b, c, x])
+    for (let day = 16; day <= 20; day++) doAll(e, [a.id, b.id, c.id], at(day)) // 3/4 = 75%
+    // 21-го в 00:05, до любого startOfDay, архивируем a.
+    e.updateHabit({ ...a, archived: true }, at(21, 0, 5))
+    // 20-е закрылось уже по новому набору (b, c из b, c, x = 67%) — серия порвана.
+    expect(e.state.dayResults[d(20)]).toBe('met')
+    expect(e.currentStreak(at(21, 0, 5))).toBe(5)
+  })
+
+  it('ИСПРАВЛЕНО: addHabit до закрытия вчерашнего дня рвёт серию (нет now, startOfDay не вызывается)', () => {
+    const a = habit()
+    const e = engine([a])
+    for (let day = 16; day <= 20; day++) doAll(e, [a.id], at(day))
+    e.addHabit(habit(), at(21, 0, 5)) // 21-го в 00:05, startOfDay ещё не было; интерфейс всегда передаёт now
+    e.startOfDay(at(21, 0, 5))
+    expect(e.currentStreak(at(21, 0, 5))).toBe(5) // факт: 4 — 20-е заморожено как missed (1/2), сгорел бесплатный щит
+    expect(e.state.shieldedDays).toEqual([])
+  })
+
+  it('ИСПРАВЛЕНО: перевод часов вперёд навсегда замораживает будущие дни как пропущенные', () => {
+    const h = habit()
+    const e = engine([h])
+    for (let day = 16; day <= 18; day++) doAll(e, [h.id], at(day))
+    e.startOfDay(at(25)) // часы ошибочно ушли на неделю вперёд
+    e.startOfDay(at(19)) // часы вернули
+    must(e.complete(h.id, at(19)))
+    doAll(e, [h.id], at(20))
+    // 19-е реально выполнено, но итог заморожен ещё до отметки
+    expect(e.plan.result(d(19))).toBe('met')
+    expect(e.currentStreak(at(20))).toBe(5)
+  })
+
+  it('ИСПРАВЛЕНО: loadState старого сохранения теряет bestStreak', () => {
+    const h = habit()
+    const old = {
+      ...engine([h]).state,
+      bestStreak: 12,
+      startDay: d(16),
+      lastProcessedDay: d(16),
+    } as Partial<GameState>
+    delete old.bestPastStreak
+    delete old.dayResults
+    const e = new GameEngine(loadState(JSON.parse(JSON.stringify(old))))
+    e.startOfDay(at(17))
+    expect(e.state.bestStreak).toBe(12) // факт: 0
+  })
+
+  it('щитов хватает ровно на серию пропусков через границу недели: сб, вс, пн', () => {
+    const h = habit()
+    const e = engine([h])
+    e.state.coins = 50
+    for (let day = 16; day <= 20; day++) doAll(e, [h.id], at(day)) // пн–пт
+    must(e.buyShield())
+    // сб 21 — бесплатный недели 16, вс 22 — купленный, пн 23 — бесплатный недели 23
+    expect(e.startOfDay(at(24))).toEqual([d(21), d(22), d(23)])
+    expect(e.state.shields.purchased).toBe(0)
+    must(e.complete(h.id, at(24)))
+    expect(e.currentStreak(at(24))).toBe(6)
+  })
+
+  it('щитов не хватает на 2 пропуска подряд — ни один не тратится, серия рвётся', () => {
+    const h = habit()
+    const e = engine([h])
+    for (let day = 16; day <= 18; day++) doAll(e, [h.id], at(day))
+    expect(e.startOfDay(at(21))).toEqual([]) // 19, 20 пропущены, есть только бесплатный
+    expect(e.state.shields.freeUsedWeeks).toEqual([])
+    expect(e.currentStreak(at(21))).toBe(0)
+    expect(e.state.bestStreak).toBe(3)
+  })
+
+  it('пустой день внутри серии пропусков не мешает щитам', () => {
+    const a = habit('easy', { kind: 'weekdays', days: [1, 2, 3, 4, 5] })
+    const e = engine([a])
+    e.state.coins = 50
+    for (let day = 16; day <= 19; day++) doAll(e, [a.id], at(day)) // пн–чт
+    must(e.buyShield())
+    // пт 20 пропуск, сб/вс пусто, пн 23 пропуск: бесплатный (нед. 16) + бесплатный (нед. 23)
+    expect(e.startOfDay(at(24))).toEqual([d(20), d(23)])
+    expect(e.state.shields.purchased).toBe(1)
+  })
+
+  it('complete вызывает startOfDay: жизни и щиты применяются, повтор ничего не ломает', () => {
+    const h = habit()
+    const e = engine([h])
+    doAll(e, [h.id], at(16))
+    doAll(e, [h.id], at(17))
+    must(e.complete(h.id, at(19))) // 18 пропущен, startOfDay не вызывали
+    expect(e.state.shieldedDays).toEqual([d(18)])
+    const snap = structuredClone(e.state)
+    e.startOfDay(at(19, 20))
+    expect(e.state).toEqual(snap)
+  })
+
+  it('отмена после заморозки: лучшая серия пересчитывается, прошлый рекорд сохраняется', () => {
+    const h = habit()
+    const e = engine([h])
+    for (let day = 16; day <= 20; day++) doAll(e, [h.id], at(day))
+    e.startOfDay(at(22)) // 21 пропущен, бесплатный щит
+    must(e.complete(h.id, at(22)))
+    expect(e.state.bestStreak).toBe(6)
+    must(e.undo(h.id, at(22)))
+    expect(e.state.bestStreak).toBe(5)
+  })
+})
