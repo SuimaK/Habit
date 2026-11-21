@@ -461,6 +461,7 @@ export class GameEngine {
     // Пока сегодня ничего не забрано, квесты подстраиваются под изменённые привычки.
     if (q.dailyDay !== today || (changed && !q.daily.some((x) => x.claimed))) {
       q.daily = generateDaily(this.state.habits, today)
+      if (q.dailyDay === today) this.keepSwaps(today)
       q.dailyDay = today
     } else if (changed) {
       // Часть квестов уже забрана: убираем только незабранные с привычками из архива.
@@ -472,12 +473,40 @@ export class GameEngine {
     q.habitsKey = key
   }
 
+  /**
+   * Квесты дня пересобрались (изменились привычки): убранные сегодня квесты не должны вернуться.
+   * Если заменить нечем — квест остаётся, а замена возвращается.
+   */
+  private keepSwaps(today: Day) {
+    const q = this.state.quests
+    if (q.swapDay !== today || !q.swappedOut?.length) return
+    q.daily = q.daily.map((x) => {
+      if (!q.swappedOut!.includes(x.id)) return x
+      const next = swapCandidate(this.state.habits, this.state.completions, today, q.daily, q.swappedOut!, seededRandom(`swap:${today}:keep:${x.id}`))
+      if (next && !q.swappedOut!.includes(next.id)) return next
+      q.swaps = Math.max(0, (q.swaps ?? 0) - 1)
+      return x
+    })
+  }
+
   /** Сколько замен квестов дня осталось сегодня (Infinity — без ограничений). */
   dailySwapsLeft(now: Date): number {
     if (!DAILY_SWAPS_PER_DAY) return Infinity
     const q = this.state.quests
-    const used = q.swapDay === dayOf(now) ? (q.swaps ?? 0) : 0
+    // Дата замены «из будущего» (часы переводили назад) тоже считается.
+    const used = q.swapDay && q.swapDay >= dayOf(now) ? (q.swaps ?? 0) : 0
     return Math.max(0, DAILY_SWAPS_PER_DAY - used)
+  }
+
+  /** Можно ли заменить этот квест прямо сейчас (без изменений состояния). */
+  canSwapDaily(questId: string, now: Date): boolean {
+    const today = dayOf(now)
+    const q = this.state.quests
+    const quest = q.daily.find((x) => x.id === questId)
+    if (!quest || q.dailyDay !== today || quest.claimed || this.dailySwapsLeft(now) <= 0) return false
+    if (dailyProgress(quest, this.state.habits, this.state.completions, today).complete) return false
+    const out = q.swapDay === today ? [...(q.swappedOut ?? []), quest.id] : [quest.id]
+    return swapCandidate(this.state.habits, this.state.completions, today, q.daily, out, () => 0) !== null
   }
 
   /** Заменить невыполненный квест дня другим, подходящим под привычки этого дня. */
@@ -497,7 +526,7 @@ export class GameEngine {
       q.swappedOut = []
     }
     const out = [...(q.swappedOut ?? []), quest.id]
-    const next = swapCandidate(this.state.habits, today, q.daily, out, seededRandom(`swap:${today}:${q.swaps}:${quest.id}`))
+    const next = swapCandidate(this.state.habits, this.state.completions, today, q.daily, out, seededRandom(`swap:${today}:${q.swaps}:${quest.id}`))
     if (!next) return fail('noAlternatives')
     q.daily = q.daily.map((x, k) => (k === i ? next : x))
     q.swaps = (q.swaps ?? 0) + 1

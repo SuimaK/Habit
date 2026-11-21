@@ -154,11 +154,19 @@ export function generateDaily(habits: Habit[], day: Day): DailyQuest[] {
  * Квест на замену: любой возможный на сегодня, которого нет в списке.
  * Сначала — те, что сегодня ещё не убирали; если таких нет, по кругу.
  */
-export function swapCandidate(habits: Habit[], day: Day, current: DailyQuest[], swappedOut: string[], rnd: () => number): DailyQuest | null {
+export function swapCandidate(
+  habits: Habit[],
+  completions: Completion[],
+  day: Day,
+  current: DailyQuest[],
+  swappedOut: string[],
+  rnd: () => number,
+): DailyQuest | null {
   const have = new Set(current.map((q) => q.id))
+  // Уже выполненный квест на замену не годится — иначе награда без усилий.
   const all = dailyCandidates(habits, day, rnd)
     .map((c) => ({ ...c, id: questId(day, c.goal), claimed: false }))
-    .filter((c) => !have.has(c.id))
+    .filter((c) => !have.has(c.id) && !dailyProgress(c, habits, completions, day).complete)
   const fresh = all.filter((c) => !swappedOut.includes(c.id))
   const pool = fresh.length ? fresh : all
   return pool.length ? pool[Math.floor(rnd() * pool.length)] : null

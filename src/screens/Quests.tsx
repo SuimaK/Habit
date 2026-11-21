@@ -50,6 +50,7 @@ export function Quests({ engine, now, act }: Props) {
   }, [message])
 
   const swapsLeft = engine.dailySwapsLeft(now)
+  const anySwap = q.daily.some((x) => engine.canSwapDaily(x.id, now))
   const lastSwap = useRef(0)
   const [focusQuest, setFocusQuest] = useState<string | null>(null)
   useEffect(() => {
@@ -133,7 +134,7 @@ export function Quests({ engine, now, act }: Props) {
                       >
                         Забрать
                       </button>
-                    ) : swapsLeft > 0 ? (
+                    ) : engine.canSwapDaily(quest.id, now) ? (
                       <div className="quest-side">
                         <span className="quest-wait">В процессе</span>
                         <button
@@ -153,7 +154,7 @@ export function Quests({ engine, now, act }: Props) {
               })}
             </ul>
           )}
-          {q.dailyDay === today && q.daily.length > 0 && DAILY_SWAPS_PER_DAY > 0 && (
+          {q.dailyDay === today && q.daily.length > 0 && DAILY_SWAPS_PER_DAY > 0 && (swapsLeft === 0 || anySwap) && (
             <p className="muted quest-note">
               {swapsLeft > 0
                 ? `Неудобный квест можно заменить другим — ${DAILY_SWAPS_PER_DAY === 1 ? 'один раз' : `${DAILY_SWAPS_PER_DAY} раза`} в день.`

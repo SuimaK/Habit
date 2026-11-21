@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { DAILY_SWAPS_PER_DAY, loadState, type Habit } from '..'
+import { DAILY_SWAPS_PER_DAY, dailyProgress, loadState, type Habit } from '..'
 import { at, d, engine, err, habit, must } from './helpers'
 
 const withCat = (h: Habit, category: Habit['category']): Habit => ({ ...h, category })
@@ -68,5 +68,50 @@ describe('замена квестов дня', () => {
     expect(bad.quests.swapDay).toBeUndefined()
     expect(bad.quests.swaps).toBe(0)
     expect(bad.quests.swappedOut).toEqual(['x'])
+  })
+  it('на замену не приходит уже выполненный квест', () => {
+    for (let day = 16; day <= 22; day++) {
+      const hs = five()
+      const e = engine(hs)
+      e.startOfDay(at(day))
+      // Выполняем всё, что не входит в текущие квесты-привычки.
+      const inList = new Set(e.state.quests.daily.flatMap((q) => (q.goal.kind === 'habit' ? [q.goal.habitId] : [])))
+      for (const h of hs) if (!inList.has(h.id)) must(e.complete(h.id, at(day)))
+      const target = e.state.quests.daily.find((q) => e.canSwapDaily(q.id, at(day)))
+      if (!target) continue
+      const next = must(e.swapDaily(target.id, at(day)))
+      expect(dailyProgress(next, e.state.habits, e.state.completions, d(day)).complete).toBe(false)
+    }
+  })
+
+  it('canSwapDaily: нет вариантов или лимит — кнопки нет', () => {
+    const one = engine([habit()])
+    one.startOfDay(at(16))
+    expect(one.canSwapDaily(one.state.quests.daily[0].id, at(16))).toBe(false)
+    const e = engine(five())
+    e.startOfDay(at(16))
+    const id = e.state.quests.daily[0].id
+    expect(e.canSwapDaily(id, at(16))).toBe(true)
+    must(e.swapDaily(id, at(16)))
+    expect(e.state.quests.daily.some((q) => e.canSwapDaily(q.id, at(16)))).toBe(false)
+  })
+
+  it('правка привычек после замены не возвращает убранный квест', () => {
+    const hs = five()
+    const e = engine(hs)
+    e.startOfDay(at(16))
+    const removed = e.state.quests.daily[0].id
+    must(e.swapDaily(removed, at(16)))
+    e.updateHabit({ ...hs[4], name: 'Дыхание' }, at(16, 13))
+    e.startOfDay(at(16, 13))
+    expect(e.state.quests.daily.map((q) => q.id)).not.toContain(removed)
+    expect(e.state.quests.daily).toHaveLength(3)
+  })
+
+  it('часы переведены назад — замена не обновляется', () => {
+    const e = engine(five())
+    e.startOfDay(at(17))
+    must(e.swapDaily(e.state.quests.daily[0].id, at(17)))
+    expect(e.dailySwapsLeft(at(16))).toBe(0)
   })
 })
