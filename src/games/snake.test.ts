@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { GOOD_POINTS, GRID, MIN_LENGTH, newGame, step, turn, type SnakeState } from './snake'
+import { MIN_TICK_MS, START_TICK_MS, tickMs, GOOD_POINTS, GRID, MIN_LENGTH, newGame, step, turn, type SnakeState } from './snake'
 
 const rnd = () => 0.5
 const at = (s: SnakeState, foods: SnakeState['foods']): SnakeState => ({ ...s, foods })
@@ -42,5 +42,15 @@ describe('Перекус', () => {
     t = turn(t, 'left')
     t = step(t, rnd)
     expect(t.alive).toBe(true)
+  })
+
+  it('скорость нарастает постепенно', () => {
+    const g = newGame(rnd)
+    const ticks = [0, 1, 2, 5, 10, 20, 40, 100].map((eaten) => tickMs({ ...g, eaten }))
+    expect(ticks[0]).toBe(START_TICK_MS)
+    for (let i = 1; i < ticks.length; i++) expect(ticks[i]).toBeLessThanOrEqual(ticks[i - 1])
+    // Каждый шаг ускорения небольшой — не больше 10 мс.
+    for (let e = 0; e < 60; e++) expect(tickMs({ ...g, eaten: e }) - tickMs({ ...g, eaten: e + 1 })).toBeLessThanOrEqual(10)
+    expect(tickMs({ ...g, eaten: 100 })).toBe(MIN_TICK_MS)
   })
 })

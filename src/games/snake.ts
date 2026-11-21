@@ -59,8 +59,13 @@ export function newGame(rnd: () => number): SnakeState {
   return s
 }
 
-/** Тик в мс: быстрее с каждым съеденным, но не быстрее 85 мс. */
-export const tickMs = (s: SnakeState) => Math.max(85, 170 - s.eaten * 4)
+/** Начальный шаг (мс), самый быстрый шаг и ускорение за каждый съеденный овощ или фрукт. */
+export const START_TICK_MS = 230
+export const MIN_TICK_MS = 90
+export const SPEEDUP = 0.97
+
+/** Тик в мс: каждый перекус ускоряет змейку на 3 %, плавно, до предела 90 мс. */
+export const tickMs = (s: SnakeState) => Math.max(MIN_TICK_MS, Math.round(START_TICK_MS * SPEEDUP ** s.eaten))
 
 /** Поворот: не больше двух в очереди, разворот назад игнорируется. */
 export function turn(s: SnakeState, d: Dir): SnakeState {
