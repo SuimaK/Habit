@@ -27,6 +27,8 @@ export function SnakeScreen({ engine, act, onExit }: Props) {
   const [phase, setPhase] = useState<Phase>('ready')
   const [result, setResult] = useState<Result | null>(null)
   const [confirmExit, setConfirmExit] = useState(false)
+  const confirmExitRef = useRef(false)
+  confirmExitRef.current = confirmExit
   const canvas = useRef<HTMLCanvasElement>(null)
   const gameRef = useRef(game)
   /** Время активной игры, ещё не записанное в движок (мс). */
@@ -34,8 +36,10 @@ export function SnakeScreen({ engine, act, onExit }: Props) {
   const runningSince = useRef<number | null>(null)
   const head = useRef<HTMLHeadingElement>(null)
   const record = engine.state.games.records.snack ?? 0
-
-  gameRef.current = game
+  const overHead = useRef<HTMLHeadingElement>(null)
+  const [, setRedraw] = useState(0)
+  /** Была ли партия запущена (до «Старт» выход возвращает жизнь). */
+  const started = useRef(false)
 
   useEffect(() => head.current?.focus(), [])
 
@@ -59,38 +63,81 @@ export function SnakeScreen({ engine, act, onExit }: Props) {
     [act, stopClock],
   )
 
-  // Игровой цикл.
+  const setBoth = useCallback((g: SnakeState) => {
+    gameRef.current = g
+    setGame(g)
+  }, [])
+
+  // Игровой цикл: ровный темп, повороты его не сбивают.
   useEffect(() => {
     if (phase !== 'running') return
+    started.current = true
     runningSince.current ??= Date.now()
-    const t = setTimeout(() => {
+    let t: ReturnType<typeof setTimeout>
+    const tick = () => {
       const next = step(gameRef.current, Math.random)
-      setGame(next)
+      setBoth(next)
       if (!next.alive) {
         navigator.vibrate?.(120)
         setResult({ score: next.score, ...commit(next.score) })
         setPhase('over')
+        return
       }
-    }, tickMs(game))
-    return () => clearTimeout(t)
-  }, [phase, game, commit])
-
-  // Свернули приложение — пауза.
-  useEffect(() => {
-    const onHide = () => {
-      if (document.visibilityState === 'hidden') {
-        stopClock()
-        setPhase((p) => (p === 'running' ? 'paused' : p))
-      }
+      t = setTimeout(tick, tickMs(next))
     }
-    document.addEventListener('visibilitychange', onHide)
-    return () => document.removeEventListener('visibilitychange', onHide)
-  }, [stopClock])
+    t = setTimeout(tick, tickMs(gameRef.current))
+    return () => clearTimeout(t)
+  }, [phase, commit, setBoth])
 
-  const steer = useCallback((d: Dir) => {
-    setGame((g) => turn(g, d))
-    setPhase((p) => (p === 'ready' ? 'running' : p))
+  useEffect(() => {
+    if (phase === 'over') overHead.current?.focus()
+  }, [phase])
+
+  // Свернули или закрыли приложение — пауза и сразу записываем время и счёт,
+  // чтобы ничего не потерялось, если система выгрузит приложение.
+  useEffect(() => {
+    const flush = () => {
+      stopClock()
+      if (playMs.current > 0 && gameRef.current.alive) {
+        const seconds = playMs.current / 1000
+        const score = gameRef.current.score
+        playMs.current = 0
+        act((e, at) => {
+          e.addPlayTime(seconds, at)
+          e.finishGame('snack', score, at)
+        })
+      }
+      setPhase((p) => (p === 'running' ? 'paused' : p))
+    }
+    const onHide = () => document.visibilityState === 'hidden' && flush()
+    document.addEventListener('visibilitychange', onHide)
+    window.addEventListener('pagehide', flush)
+    return () => {
+      document.removeEventListener('visibilitychange', onHide)
+      window.removeEventListener('pagehide', flush)
+    }
+  }, [stopClock, act])
+
+  // Перерисовать поле при смене размера или темы.
+  useEffect(() => {
+    const bump = () => setRedraw((n) => n + 1)
+    const mq = window.matchMedia('(prefers-color-scheme: dark)')
+    window.addEventListener('resize', bump)
+    mq.addEventListener?.('change', bump)
+    return () => {
+      window.removeEventListener('resize', bump)
+      mq.removeEventListener?.('change', bump)
+    }
   }, [])
+
+  const steer = useCallback(
+    (d: Dir) => {
+      if (confirmExitRef.current) return
+      setBoth(turn(gameRef.current, d))
+      setPhase((p) => (p === 'ready' ? 'running' : p))
+    },
+    [setBoth],
+  )
 
   useEffect(() => {
     const onKey = (ev: KeyboardEvent) => {
@@ -107,7 +154,7 @@ export function SnakeScreen({ engine, act, onExit }: Props) {
     return () => window.removeEventListener('keydown', onKey)
   })
 
-  // Отрисовка.
+  // Отрисовка (каждый рендер: после хода, паузы, смены размера или темы).
   useEffect(() => {
     const c = canvas.current
     if (!c) return
@@ -149,7 +196,7 @@ export function SnakeScreen({ engine, act, onExit }: Props) {
       ctx.arc(h.x * cell + ex[k] * cell, h.y * cell + ex[k + 1] * cell, cell * 0.1, 0, Math.PI * 2)
       ctx.fill()
     }
-  }, [game])
+  })
 
   // Свайпы по полю.
   const touch = useRef<{ x: number; y: number } | null>(null)
@@ -166,6 +213,7 @@ export function SnakeScreen({ engine, act, onExit }: Props) {
   }
 
   function togglePause() {
+    if (confirmExit) return
     if (phase === 'running') {
       stopClock()
       setPhase('paused')
@@ -175,13 +223,16 @@ export function SnakeScreen({ engine, act, onExit }: Props) {
   function again() {
     const ok = act((e, at) => e.startGame(at))
     if (!ok) return
-    setGame(newGame(Math.random))
+    setBoth(newGame(Math.random))
+    started.current = false
+    setConfirmExit(false)
     setResult(null)
     setPhase('ready')
   }
 
   function exit() {
-    if (phase !== 'over') commit(gameRef.current.score)
+    if (phase === 'ready' && !started.current) act((e) => e.refundLife())
+    else if (phase !== 'over') commit(gameRef.current.score)
     onExit()
   }
 
@@ -233,7 +284,7 @@ export function SnakeScreen({ engine, act, onExit }: Props) {
         {phase === 'ready' && (
           <div className="snake-overlay">
             <p>Собирай овощи и фрукты, а фастфуд обходи стороной — он укорачивает змейку.</p>
-            <p className="muted">Свайпай по полю или жми стрелки.</p>
+            <p className="muted">Свайпай по полю или жми стрелки. Если выйти до старта, жизнь вернётся.</p>
             <button type="button" className="btn primary" onClick={() => setPhase('running')}>
               Старт
             </button>
@@ -262,7 +313,7 @@ export function SnakeScreen({ engine, act, onExit }: Props) {
         )}
         {phase === 'over' && result && (
           <div className="snake-overlay" role="dialog" aria-modal="true" aria-labelledby="snake-over">
-            <h3 id="snake-over">{result.newRecord && result.score > 0 ? '★ Новый рекорд! ★' : 'Партия окончена'}</h3>
+            <h3 id="snake-over" ref={overHead} tabIndex={-1}>{result.newRecord && result.score > 0 ? '★ Новый рекорд! ★' : 'Партия окончена'}</h3>
             <p className="snake-final">{result.score} очков</p>
             {result.newBadges.length > 0 && <p>Новый бейдж: {badgeTitles(result.newBadges)}</p>}
             {block && <p className="muted">{block === 'limitReached' ? BLOCK_TEXT.limitReached : 'Жизни закончились — новые придут в 06:00.'}</p>}
@@ -270,7 +321,7 @@ export function SnakeScreen({ engine, act, onExit }: Props) {
               <button type="button" className="btn ghost" onClick={exit}>
                 Выйти
               </button>
-              <button type="button" className="btn primary" onClick={again} disabled={!!block} autoFocus={!block}>
+              <button type="button" className="btn primary" onClick={again} disabled={!!block}>
                 Ещё раз ♥1
               </button>
             </div>
@@ -278,7 +329,7 @@ export function SnakeScreen({ engine, act, onExit }: Props) {
         )}
       </div>
 
-      <div className="snake-pad" aria-label="Управление">
+      <div className="snake-pad" role="group" aria-label="Управление">
         <button type="button" className="up" onClick={() => steer('up')} aria-label="Вверх">
           ▲
         </button>

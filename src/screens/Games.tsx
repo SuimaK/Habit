@@ -75,7 +75,7 @@ export function Games({ engine, now, act, onPlay }: Props) {
               «Перекус»
               <small>Змейка · рекорд {g.records.snack ?? 0}</small>
             </span>
-            <button type="button" className="btn primary small" disabled={!!block} onClick={onPlay} aria-label="Играть в «Перекус», стоит 1 жизнь">
+            <button type="button" className="btn primary small" disabled={!!block} onClick={onPlay} aria-label="Играть в «Перекус», стоит 1 жизнь" aria-describedby={block ? 'game-block' : undefined}>
               Играть ♥1
             </button>
           </li>
@@ -98,7 +98,7 @@ export function Games({ engine, now, act, onPlay }: Props) {
             </span>
           </li>
         </ul>
-        {block && <p className="muted game-block">{BLOCK_TEXT[block]}</p>}
+        {block && <p className="muted game-block" id="game-block">{BLOCK_TEXT[block]}</p>}
       </section>
 
       <section className="card list-card" aria-labelledby="lives-h">

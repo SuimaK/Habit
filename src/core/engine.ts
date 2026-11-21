@@ -817,6 +817,11 @@ export class GameEngine {
     return { newRecord, record: Math.max(prev, s), newBadges: this.checkBadges(now) }
   }
 
+  /** Вернуть жизнь, если вышла из партии до старта. */
+  refundLife() {
+    this.state.lives = { ...this.state.lives, count: this.state.lives.count + 1 }
+  }
+
   setGameLimit(minutes: number) {
     if (Number.isInteger(minutes) && minutes >= 0 && minutes <= 600) this.state.games.limitMin = minutes
   }
