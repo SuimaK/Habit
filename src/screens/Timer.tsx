@@ -118,11 +118,11 @@ export function Timer({ habit, data, onChange, onFinish, onExit }: Props) {
           <div className="timer-len">
             <span id="timer-len">Длительность</span>
             <div className="stepper" role="group" aria-labelledby="timer-len">
-              <button type="button" aria-label="Меньше на минуту" disabled={minutes <= MIN_MINUTES} onClick={() => setMinutes((m) => Math.max(MIN_MINUTES, m - (m > 10 ? 5 : 1)))}>
+              <button type="button" aria-label="Меньше" disabled={minutes <= MIN_MINUTES} onClick={() => setMinutes((m) => Math.max(MIN_MINUTES, m - (m > 10 ? 5 : 1)))}>
                 −
               </button>
               <strong aria-live="polite">{minutes} мин</strong>
-              <button type="button" aria-label="Больше на минуту" disabled={minutes >= MAX_MINUTES} onClick={() => setMinutes((m) => Math.min(MAX_MINUTES, m + (m >= 10 ? 5 : 1)))}>
+              <button type="button" aria-label="Больше" disabled={minutes >= MAX_MINUTES} onClick={() => setMinutes((m) => Math.min(MAX_MINUTES, m + (m >= 10 ? 5 : 1)))}>
                 +
               </button>
             </div>
