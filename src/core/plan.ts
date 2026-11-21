@@ -10,8 +10,18 @@ export type DayResult = 'empty' | 'met' | 'missed'
 export class Plan {
   readonly habits: Habit[]
   private readonly doneByDay = new Map<Day, Set<string>>()
+  private readonly frozen: Readonly<Record<Day, DayResult>>
 
-  constructor(habits: Habit[], completions: Completion[]) {
+  /**
+   * @param frozen Итоги уже закрытых дней. Они не пересчитываются, даже если потом
+   * привычки добавили, архивировали или поменяли им частоту.
+   */
+  constructor(
+    habits: Habit[],
+    completions: Completion[],
+    frozen: Readonly<Record<Day, DayResult>> = {},
+  ) {
+    this.frozen = frozen
     this.habits = habits.filter((h) => !h.archived)
     for (const c of completions) {
       let set = this.doneByDay.get(c.day)
@@ -50,6 +60,13 @@ export class Plan {
   }
 
   result(day: Day): DayResult {
+    const frozen = this.frozen[day]
+    if (frozen) return frozen
+    return this.liveResult(day)
+  }
+
+  /** Итог дня по текущему набору привычек. */
+  liveResult(day: Day): DayResult {
     const planned = this.scheduledHabits(day)
     if (planned.length === 0) return 'empty'
     const done = this.done(day)

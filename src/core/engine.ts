@@ -2,7 +2,7 @@ import { addDays, dayOf, type Day } from './day'
 import { levelProgress, type LevelProgress } from './leveling'
 import { initialLives, LIFE_PACKS, refreshLives, type LifePack, type LivesState } from './lives'
 import { DIFFICULTY_REWARD, type Completion, type Habit } from './models'
-import { Plan } from './plan'
+import { Plan, type DayResult } from './plan'
 import { initialShields, SHIELD_PRICE, consumeShield, type ShieldsState } from './shields'
 import { currentOverallStreak, habitStreak, overallStreak, streakMultiplier } from './streaks'
 
@@ -27,6 +27,11 @@ export interface GameState {
   lastProcessedDay: Day | null
   /** День начала истории. */
   startDay: Day | null
+  /** Итоги закрытых дней — не пересчитываются при изменении привычек. */
+  dayResults: Record<Day, DayResult>
+  /** Лучшая серия среди закрытых дней. */
+  bestPastStreak: number
+  /** Лучшая серия с учётом сегодняшнего дня. */
   bestStreak: number
 }
 
@@ -43,8 +48,30 @@ export const initialState = (): GameState => ({
   shieldedDays: [],
   lastProcessedDay: null,
   startDay: null,
+  dayResults: {},
+  bestPastStreak: 0,
   bestStreak: 0,
 })
+
+/** Загрузить сохранённое состояние: недостающие поля (из старых версий) берутся по умолчанию. */
+export function loadState(raw: unknown): GameState {
+  const base = initialState()
+  if (!raw || typeof raw !== 'object') return base
+  return { ...base, ...(raw as Partial<GameState>), version: 1 }
+}
+
+/** Проверка параметров привычки. Возвращает текст ошибки или null. */
+export function validateHabit(h: Habit): string | null {
+  if (!h.name.trim()) return 'Нужно название'
+  const f = h.frequency
+  if (f.kind === 'weekdays' && (f.days.length === 0 || f.days.some((d) => d < 1 || d > 7 || !Number.isInteger(d)))) {
+    return 'Выберите хотя бы один день недели'
+  }
+  if (f.kind === 'timesPerWeek' && (!Number.isInteger(f.times) || f.times < 1 || f.times > 7)) {
+    return 'От 1 до 7 раз в неделю'
+  }
+  return null
+}
 
 export type CompletionError =
   | 'habitNotFound'
@@ -93,7 +120,7 @@ export class GameEngine {
   // ---------- Вычисляемые значения ----------
 
   get plan(): Plan {
-    return new Plan(this.state.habits, this.state.completions)
+    return new Plan(this.state.habits, this.state.completions, this.state.dayResults)
   }
 
   get level(): LevelProgress {
@@ -146,39 +173,81 @@ export class GameEngine {
     this.state.lives = refreshLives(this.state.lives, now)
 
     const yesterday = addDays(today, -1)
+    const earliest = this.earliest(today)
     const saved: Day[] = []
-    const plan = this.plan
+    const plan = this.plan // видит state.dayResults по ссылке, поэтому замороженные итоги сразу учитываются
     let day = this.state.lastProcessedDay ? addDays(this.state.lastProcessedDay, 1) : this.state.startDay
     for (; day <= yesterday; day = addDays(day, 1)) {
-      if (plan.result(day) === 'missed') {
-        const before = overallStreak(addDays(day, -1), plan, this.shielded, this.earliest(today))
-        // Щит тратится, только если есть что спасать.
-        const next = before > 0 ? consumeShield(this.state.shields, day) : null
-        if (next) {
-          this.state.shields = next
-          this.state.shieldedDays.push(day)
-          saved.push(day)
+      // Закрываем день: фиксируем итог по набору привычек, который был в этот момент.
+      const result = plan.liveResult(day)
+      this.state.dayResults[day] = result
+
+      if (result === 'missed' && !this.state.shieldedDays.includes(day)) {
+        const before = overallStreak(addDays(day, -1), plan, this.shielded, earliest)
+        if (before > 0) {
+          // Пропуски подряд до ближайшего засчитанного дня (или до вчера).
+          const run: Day[] = []
+          for (let x = day; x <= yesterday; x = addDays(x, 1)) {
+            const r = this.state.dayResults[x] ?? plan.liveResult(x)
+            if (r === 'met') break
+            if (r === 'missed') run.push(x)
+          }
+          // Щиты тратятся, только если их хватает на все пропуски — иначе серию всё равно не спасти.
+          let shields: ShieldsState | null = this.state.shields
+          for (const x of run) shields = shields && consumeShield(shields, x)
+          if (shields) {
+            this.state.shields = shields
+            this.state.shieldedDays.push(...run)
+            saved.push(...run)
+          }
         }
       }
+      this.state.bestPastStreak = Math.max(
+        this.state.bestPastStreak,
+        overallStreak(day, plan, this.shielded, earliest),
+      )
       this.state.lastProcessedDay = day
     }
+    this.checkDayBonus(today)
     this.updateBestStreak(now)
     return saved
   }
 
   private updateBestStreak(now: Date) {
-    this.state.bestStreak = Math.max(this.state.bestStreak, this.currentStreak(now))
+    this.state.bestStreak = Math.max(this.state.bestPastStreak, this.currentStreak(now))
+  }
+
+  /** Бонус «все привычки дня выполнены», если он ещё не выдан. */
+  private checkDayBonus(day: Day): { xp: number; coins: number } | null {
+    if (this.state.bonusByDay[day] || !this.plan.allFixedDone(day)) return null
+    const xp = this.grantXp(ALL_DONE_BONUS.xp, day)
+    this.state.coins += ALL_DONE_BONUS.coins
+    const bonus = { xp, coins: ALL_DONE_BONUS.coins }
+    this.state.bonusByDay[day] = bonus
+    return bonus
   }
 
   // ---------- Привычки ----------
 
   addHabit(habit: Habit) {
+    const error = validateHabit(habit)
+    if (error) throw new Error(error)
     this.state.habits.push(habit)
   }
 
-  updateHabit(habit: Habit) {
+  /**
+   * Изменить привычку. Если передать `now`, сразу проверяется бонус дня
+   * (например, архивировали последнюю невыполненную привычку).
+   */
+  updateHabit(habit: Habit, now?: Date) {
+    const error = validateHabit(habit)
+    if (error) throw new Error(error)
     const i = this.state.habits.findIndex((h) => h.id === habit.id)
     if (i >= 0) this.state.habits[i] = habit
+    if (now) {
+      this.startOfDay(now)
+      this.checkDayBonus(dayOf(now))
+    }
   }
 
   /** Отметить привычку выполненной сегодня. */
@@ -186,8 +255,9 @@ export class GameEngine {
     const habit = this.state.habits.find((h) => h.id === habitId)
     if (!habit) return fail('habitNotFound')
     if (habit.archived) return fail('habitArchived')
+    // Сначала закрываем прошедшие дни (щиты, жизни), чтобы множитель был верным.
+    this.startOfDay(now)
     const today = dayOf(now)
-    this.state.startDay ??= today
     if (this.isCompleted(habitId, today)) return fail('alreadyCompletedToday')
 
     const f = habit.frequency
@@ -217,13 +287,11 @@ export class GameEngine {
       levelAfter: levelBefore,
     }
 
-    if (!this.state.bonusByDay[today] && this.plan.allFixedDone(today)) {
-      const bonusXp = this.grantXp(ALL_DONE_BONUS.xp, today)
-      this.state.coins += ALL_DONE_BONUS.coins
-      this.state.bonusByDay[today] = { xp: bonusXp, coins: ALL_DONE_BONUS.coins }
-      event.bonusXp = bonusXp
-      event.bonusCoins = ALL_DONE_BONUS.coins
-      if (bonusXp < ALL_DONE_BONUS.xp) event.cappedByDailyLimit = true
+    const bonus = this.checkDayBonus(today)
+    if (bonus) {
+      event.bonusXp = bonus.xp
+      event.bonusCoins = bonus.coins
+      if (bonus.xp < ALL_DONE_BONUS.xp) event.cappedByDailyLimit = true
     }
 
     event.levelAfter = this.level.level
@@ -240,17 +308,21 @@ export class GameEngine {
     const index = this.state.completions.findIndex((c) => c.habitId === habitId && c.day === today)
     if (index < 0) return fail('notCompletedToday')
     const completion = this.state.completions[index]
+    const rest = this.state.completions.filter((_, i) => i !== index)
     const bonus = this.state.bonusByDay[today]
-    if (this.state.coins < completion.coins + (bonus?.coins ?? 0)) return fail('coinsAlreadySpent')
+    // Бонус дня забирается, только если без этой отметки выполнены не все привычки.
+    const revokeBonus = bonus && !new Plan(this.state.habits, rest).allFixedDone(today) ? bonus : null
+    if (this.state.coins < completion.coins + (revokeBonus?.coins ?? 0)) return fail('coinsAlreadySpent')
 
-    this.state.completions.splice(index, 1)
+    this.state.completions = rest
     this.revokeXp(completion.xp, today)
     this.state.coins -= completion.coins
-    if (bonus && !this.plan.allFixedDone(today)) {
-      this.revokeXp(bonus.xp, today)
-      this.state.coins -= bonus.coins
+    if (revokeBonus) {
+      this.revokeXp(revokeBonus.xp, today)
+      this.state.coins -= revokeBonus.coins
       delete this.state.bonusByDay[today]
     }
+    this.updateBestStreak(now)
     return ok(undefined)
   }
 
@@ -260,6 +332,7 @@ export class GameEngine {
     const today = dayOf(now)
     const levelBefore = this.level.level
     const granted = this.grantXp(xp, today)
+    coins = Math.max(0, coins)
     this.state.coins += coins
     return {
       xp: granted,
@@ -305,7 +378,7 @@ export class GameEngine {
 
   /** Начать партию: обновляет жизни и списывает одну. false — жизней нет. */
   startGame(now: Date): boolean {
-    this.state.lives = refreshLives(this.state.lives, now)
+    this.startOfDay(now)
     if (this.state.lives.count <= 0) return false
     this.state.lives = { ...this.state.lives, count: this.state.lives.count - 1 }
     return true
