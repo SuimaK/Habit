@@ -4,5 +4,5 @@ import { defineConfig } from 'vitest/config'
 process.env.TZ = 'Europe/Moscow'
 
 export default defineConfig({
-  test: { include: ['src/**/*.test.ts'] },
+  test: { include: ['src/**/*.test.ts'], setupFiles: ['src/test-setup.ts'] },
 })

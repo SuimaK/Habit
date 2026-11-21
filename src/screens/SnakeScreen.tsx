@@ -288,7 +288,7 @@ export function SnakeScreen({ engine, act, onExit }: Props) {
         {phase === 'ready' && (
           <div className="snake-overlay">
             <p>Собирай овощи и фрукты, а фастфуд обходи стороной — он укорачивает змейку.</p>
-            <p className="muted">Свайпай по полю или жми стрелки. Если выйти до старта, жизнь вернётся.</p>
+            <p className="muted">Свайпай по полю или жми стрелки. Если выйти до старта, потраченная жизнь вернётся.</p>
             <button type="button" className="btn primary" onClick={() => setPhase('running')}>
               Старт
             </button>

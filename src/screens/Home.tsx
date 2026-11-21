@@ -133,7 +133,7 @@ export function Home({ engine, now, act, onSettings }: Props) {
             <span>
               <span aria-hidden>♥ </span>
               <span className="sr-only">Жизни для игр: </span>
-              {s.lives.count}
+              {engine.livesUnlimited(now) ? '∞' : s.lives.count}
             </span>
             <span>
               <span aria-hidden>🛡 </span>

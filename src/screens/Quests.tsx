@@ -3,6 +3,7 @@ import {
   DAILY_QUEST_REWARD,
   DAILY_SWAPS_PER_DAY,
   WEEKLY_QUEST_REWARD,
+  UNLIMITED_LIVES_MIN,
   addDays,
   chestLabel,
   dailyProgress,
@@ -41,6 +42,7 @@ export function Quests({ engine, now, act }: Props) {
     const ev = r.value
     const parts = [`+${ev.xp} XP${ev.cappedByDailyLimit ? ' (дневной лимит опыта)' : ''}`, `+${ev.coins} монет`]
     if (ev.chest) parts.push(`в сундуке: ${chestLabel(ev.chest)}`)
+    if (ev.unlimitedMin) parts.push(`безлимит жизней на ${ev.unlimitedMin} минут`)
     if (ev.newBadges.length) parts.push(`новый бейдж: ${badgeTitles(ev.newBadges)}`)
     setMessage(`Квест выполнен! ${parts.join(', ')}`)
   }
@@ -122,7 +124,7 @@ export function Quests({ engine, now, act }: Props) {
                         {questTitle(quest, s.habits, s.directions)}
                       </span>
                       <span className="quest-reward">
-                        {DAILY_QUEST_REWARD.xp} XP · {DAILY_QUEST_REWARD.coins} 🪙
+                        {DAILY_QUEST_REWARD.xp} XP · {DAILY_QUEST_REWARD.coins} 🪙 · ♥ ∞ {UNLIMITED_LIVES_MIN.daily} мин
                       </span>
                       <Progress done={p.done} target={p.target} />
                     </div>
@@ -187,7 +189,7 @@ export function Quests({ engine, now, act }: Props) {
                 </div>
               ))}
               <p className="quest-reward">
-                Награда: {WEEKLY_QUEST_REWARD.xp} XP · {WEEKLY_QUEST_REWARD.coins} 🪙 · сундук 🎁
+                Награда: {WEEKLY_QUEST_REWARD.xp} XP · {WEEKLY_QUEST_REWARD.coins} 🪙 · сундук 🎁 · ♥ ∞ {UNLIMITED_LIVES_MIN.weekly} мин
               </p>
               {q.weekly.claimed ? (
                 <p className="quest-done">

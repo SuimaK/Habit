@@ -24,6 +24,7 @@ import {
   DAILY_QUEST_REWARD,
   DAILY_SWAPS_PER_DAY,
   WEEKLY_QUEST_REWARD,
+  UNLIMITED_LIVES_MIN,
   dailyProgress,
   seededRandom,
   swapCandidate,
@@ -50,6 +51,7 @@ import {
   type CustomQuest,
   type CustomQuestError,
 } from './customQuests'
+import { isTestMode } from './testMode'
 import { DEFAULT_GAME_LIMIT_MIN, initialGames, playLeftSec, type GameBlock, type GameId, type GamesState } from './games'
 import { REWARD_MAX_PRICE, REWARD_NAME_MAX, validateReward, type PersonalReward, type Redemption, type RewardError } from './rewards'
 import { initialShields, SHIELD_PRICE, consumeShield, type ShieldsState } from './shields'
@@ -71,6 +73,10 @@ export interface GameState {
   /** Бонус «все привычки дня выполнены»: что начислено за день. */
   bonusByDay: Record<Day, { xp: number; coins: number }>
   lives: LivesState
+  /** До какого момента (мс) жизни в играх не тратятся — награда за квесты. */
+  unlimitedLivesUntil: number | null
+  /** Последняя партия началась без списания жизни — при выходе до старта жизнь не возвращается. */
+  lastGameFree: boolean
   shields: ShieldsState
   shieldedDays: Day[]
   /** Последний прошедший день, к которому уже применены щиты. */
@@ -110,6 +116,8 @@ export const initialState = (): GameState => ({
   xpByDay: {},
   bonusByDay: {},
   lives: initialLives(),
+  unlimitedLivesUntil: null,
+  lastGameFree: false,
   shields: initialShields(),
   shieldedDays: [],
   lastProcessedDay: null,
@@ -224,6 +232,9 @@ export function loadState(raw: unknown): GameState {
         lastRefresh: typeof l.lastRefresh === 'number' && Number.isFinite(l.lastRefresh) ? l.lastRefresh : null,
       }
     })(),
+    unlimitedLivesUntil:
+      typeof r.unlimitedLivesUntil === 'number' && Number.isFinite(r.unlimitedLivesUntil) ? r.unlimitedLivesUntil : null,
+    lastGameFree: r.lastGameFree === true,
     shields: {
       purchased: num(obj<Partial<ShieldsState>>(r.shields, {}).purchased, 0),
       freeUsedWeeks: arr<Day>(obj<Partial<ShieldsState>>(r.shields, {}).freeUsedWeeks, []),
@@ -366,6 +377,8 @@ export interface RewardEvent {
   newBadges: string[]
   /** Приз из сундука (недельный квест). */
   chest?: ChestPrize
+  /** На сколько минут дан безлимит жизней (квесты). */
+  unlimitedMin?: number
 }
 
 /**
@@ -604,6 +617,8 @@ export class GameEngine {
     quest.claimed = true
     this.state.quests.claimedCount++
     const ev = this.award(DAILY_QUEST_REWARD.xp, DAILY_QUEST_REWARD.coins, now)
+    quest.xpGranted = ev.xp
+    ev.unlimitedMin = this.grantUnlimited(UNLIMITED_LIVES_MIN.daily, now)
     ev.newBadges = this.checkBadges(now)
     return ok(ev)
   }
@@ -617,12 +632,14 @@ export class GameEngine {
     quest.claimed = true
     this.state.quests.claimedCount++
     const ev = this.award(WEEKLY_QUEST_REWARD.xp, WEEKLY_QUEST_REWARD.coins, now)
+    quest.xpGranted = ev.xp
     const chest = rollChest(quest.weekStart)
     quest.chest = chest
     if (chest.kind === 'coins') this.state.coins += chest.amount
     else if (chest.kind === 'shield') this.state.shields = { ...this.state.shields, purchased: this.state.shields.purchased + 1 }
     else this.state.lives = { ...this.state.lives, count: this.state.lives.count + chest.amount }
     ev.chest = chest
+    ev.unlimitedMin = this.grantUnlimited(UNLIMITED_LIVES_MIN.weekly, now)
     ev.newBadges = this.checkBadges(now)
     return ok(ev)
   }
@@ -911,19 +928,41 @@ export class GameEngine {
       q.weekly?.claimed &&
       q.weekly.weekStart === weekStart(today) &&
       weeklyProgress(q.weekly, this.state.habits, rest).some((x) => !x.progress.complete)
-    if (breaksDaily || breaksWeekly) return fail('usedInQuest')
+    // В тестовый период снять можно любую сегодняшнюю отметку: квест снова станет незабранным.
+    const test = isTestMode(now)
+    if ((breaksDaily || breaksWeekly) && !test) return fail('usedInQuest')
     const bonus = this.state.bonusByDay[today]
     // Бонус дня забирается, только если без этой отметки выполнены не все привычки.
     const revokeBonus = bonus && !new Plan(this.state.habits, rest).allFixedDone(today) ? bonus : null
-    if (this.state.coins < completion.coins + (revokeBonus?.coins ?? 0)) return fail('coinsAlreadySpent')
+    if (this.state.coins < completion.coins + (revokeBonus?.coins ?? 0) && !test) return fail('coinsAlreadySpent')
 
     this.state.completions = rest
     this.revokeXp(completion.xp, today)
-    this.state.coins -= completion.coins
+    this.takeCoins(completion.coins)
     if (revokeBonus) {
       this.revokeXp(revokeBonus.xp, today)
-      this.state.coins -= revokeBonus.coins
+      this.takeCoins(revokeBonus.coins)
       delete this.state.bonusByDay[today]
+    }
+    if (breaksDaily) {
+      for (const x of q.daily)
+        if (x.claimed && !dailyProgress(x, this.state.habits, rest, today).complete) {
+          x.claimed = false
+          this.unclaimQuest(x.xpGranted ?? DAILY_QUEST_REWARD.xp, DAILY_QUEST_REWARD.coins, UNLIMITED_LIVES_MIN.daily, today)
+          x.xpGranted = undefined
+        }
+    }
+    if (breaksWeekly && q.weekly) {
+      q.weekly.claimed = false
+      this.unclaimQuest(q.weekly.xpGranted ?? WEEKLY_QUEST_REWARD.xp, WEEKLY_QUEST_REWARD.coins, UNLIMITED_LIVES_MIN.weekly, today)
+      q.weekly.xpGranted = undefined
+      const chest = q.weekly.chest
+      if (chest?.kind === 'coins') this.takeCoins(chest.amount)
+      else if (chest?.kind === 'shield')
+        this.state.shields = { ...this.state.shields, purchased: Math.max(0, this.state.shields.purchased - 1) }
+      else if (chest?.kind === 'lives')
+        this.state.lives = { ...this.state.lives, count: Math.max(0, this.state.lives.count - chest.amount) }
+      q.weekly.chest = null
     }
     this.updateBestStreak(now)
     return ok(undefined)
@@ -956,6 +995,37 @@ export class GameEngine {
     this.state.totalXp += granted
     this.state.xpByDay[day] = this.xpEarned(day) + granted
     return granted
+  }
+
+  /** Забрать монеты, не уходя в минус (в тестовый период монеты могли быть уже потрачены). */
+  private takeCoins(amount: number) {
+    this.state.coins = Math.max(0, this.state.coins - amount)
+  }
+
+  /** Откатить награду за квест, который снова стал невыполненным (только тестовый период). */
+  private unclaimQuest(xp: number, coins: number, unlimitedMin: number, day: Day) {
+    this.state.quests.claimedCount = Math.max(0, this.state.quests.claimedCount - 1)
+    this.revokeXp(Math.min(xp, this.xpEarned(day)), day)
+    this.takeCoins(coins)
+    if (this.state.unlimitedLivesUntil !== null) this.state.unlimitedLivesUntil -= unlimitedMin * 60_000
+  }
+
+  /** Продлить безлимит жизней на `minutes` от текущего конца (или от сейчас). Возвращает minutes. */
+  private grantUnlimited(minutes: number, now: Date): number {
+    const from = Math.max(now.getTime(), this.state.unlimitedLivesUntil ?? 0)
+    this.state.unlimitedLivesUntil = from + minutes * 60_000
+    return minutes
+  }
+
+  /** Жизни сейчас не тратятся: тестовый период или безлимит за квест. */
+  livesUnlimited(now: Date): boolean {
+    return isTestMode(now) || (this.state.unlimitedLivesUntil ?? 0) > now.getTime()
+  }
+
+  /** До какого момента действует безлимит за квест (null — не действует). */
+  unlimitedUntil(now: Date): Date | null {
+    const u = this.state.unlimitedLivesUntil
+    return u !== null && u > now.getTime() ? new Date(u) : null
   }
 
   private revokeXp(amount: number, day: Day) {
@@ -1035,7 +1105,7 @@ export class GameEngine {
 
   /** Можно ли начать партию сейчас. */
   gameBlock(now: Date): GameBlock | null {
-    if (this.state.lives.count <= 0) return 'noLives'
+    if (this.state.lives.count <= 0 && !this.livesUnlimited(now)) return 'noLives'
     if (playLeftSec(this.state.games, dayOf(now)) <= 0) return 'limitReached'
     return null
   }
@@ -1044,6 +1114,11 @@ export class GameEngine {
   startGame(now: Date): boolean {
     this.startOfDay(now)
     if (this.gameBlock(now)) return false
+    if (this.livesUnlimited(now)) {
+      this.state.lastGameFree = true
+      return true
+    }
+    this.state.lastGameFree = false
     this.state.lives = { ...this.state.lives, count: this.state.lives.count - 1 }
     return true
   }
@@ -1067,6 +1142,8 @@ export class GameEngine {
 
   /** Вернуть жизнь, если вышла из партии до старта. */
   refundLife() {
+    // Партия была бесплатной (безлимит) — возвращать нечего.
+    if (this.state.lastGameFree) return
     this.state.lives = { ...this.state.lives, count: this.state.lives.count + 1 }
   }
 

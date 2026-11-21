@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import {
   DAILY_QUEST_REWARD,
+  UNLIMITED_LIVES_MIN,
   DIFFICULTY_REWARD,
   dailyProgress,
   questTitle,
@@ -181,9 +182,9 @@ export function Today({ engine, now, act, storageOk, onManage, onQuests, onTimer
               <span aria-hidden>🪙 </span>
               {s.coins}
             </span>
-            <span aria-label={`Жизни для игр: ${s.lives.count}`}>
+            <span aria-label={`Жизни для игр: ${engine.livesUnlimited(now) ? 'без ограничений' : s.lives.count}`}>
               <span aria-hidden>♥ </span>
-              {s.lives.count}
+              {engine.livesUnlimited(now) ? '∞' : s.lives.count}
             </span>
             {multiplier > 1 && (
               <span className="mult" aria-label={`Множитель опыта ${multiplier}`}>
@@ -263,7 +264,7 @@ export function Today({ engine, now, act, storageOk, onManage, onQuests, onTimer
             <span className="muted small-caps">Квест дня</span>
             <span className="quest-title">{questTitle(questOfDay, s.habits)}</span>
             <span className="quest-reward">
-              Награда: {DAILY_QUEST_REWARD.xp} XP + {DAILY_QUEST_REWARD.coins} монет
+              Награда: {DAILY_QUEST_REWARD.xp} XP + {DAILY_QUEST_REWARD.coins} монет + {UNLIMITED_LIVES_MIN.daily} мин безлимита жизней
             </span>
             <Progress done={questProgress!.done} target={questProgress!.target} />
           </div>
@@ -277,6 +278,7 @@ export function Today({ engine, now, act, storageOk, onManage, onQuests, onTimer
                   say(
                     `Квест выполнен! +${r.value.xp} XP и +${r.value.coins} монет` +
                       (r.value.cappedByDailyLimit ? ' (дневной лимит опыта)' : '') +
+                      (r.value.unlimitedMin ? `. Безлимит жизней в играх на ${r.value.unlimitedMin} минут` : '') +
                       (r.value.newBadges.length ? `. Новый бейдж: ${badgeTitles(r.value.newBadges)}` : ''),
                   )
                 else say('Квесты обновились — загляни во вкладку «Квесты»')

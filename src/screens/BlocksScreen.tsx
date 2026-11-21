@@ -391,7 +391,7 @@ export function BlocksScreen({ engine, act, onExit }: Props) {
         {phase === 'ready' && (
           <div className="snake-overlay">
             <p>Складывай ящики с урожаем: заполненный ряд исчезает. Чем больше рядов за раз — тем больше очков.</p>
-            <p className="muted">Свайп вбок — сдвинуть, тап — повернуть, резкий свайп вниз — сбросить. Если выйти до старта, жизнь вернётся.</p>
+            <p className="muted">Свайп вбок — сдвинуть, тап — повернуть, резкий свайп вниз — сбросить. Если выйти до старта, потраченная жизнь вернётся.</p>
             <button type="button" className="btn primary" onClick={() => setPhase('running')}>
               Старт
             </button>

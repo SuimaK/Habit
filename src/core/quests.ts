@@ -8,6 +8,8 @@ import type { Category, Completion, Habit } from './models'
  */
 export const DAILY_QUEST_REWARD = { xp: 40, coins: 5 }
 export const WEEKLY_QUEST_REWARD = { xp: 150, coins: 20 }
+/** Безлимит жизней в играх за квест, минут: дневной — 15, недельный — 30 (Кейт, 21.11.2026). */
+export const UNLIMITED_LIVES_MIN = { daily: 15, weekly: 30 } as const
 export const DAILY_QUESTS_PER_DAY = 3
 /** Сколько ежедневных квестов можно заменить за день (0 — без ограничений). */
 export const DAILY_SWAPS_PER_DAY = 1
@@ -22,6 +24,8 @@ export interface DailyQuest {
   title: string
   goal: DailyGoal
   claimed: boolean
+  /** Сколько XP реально начислено за квест (с учётом дневного лимита) — чтобы точно забрать при отмене. */
+  xpGranted?: number
 }
 
 export interface WeeklyLine {
@@ -36,6 +40,8 @@ export interface WeeklyQuest {
   lines: WeeklyLine[]
   claimed: boolean
   chest: ChestPrize | null
+  /** Сколько XP реально начислено за квест (с учётом дневного лимита). */
+  xpGranted?: number
 }
 
 export interface QuestState {
